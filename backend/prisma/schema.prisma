@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserPlan {
+  free
+  pro
+}
+
+enum LeadProcessingStatus {
+  processing
+  draft_created
+  sent
+  failed
+}
+
+model User {
+  id                 String           @id @default(uuid())
+  name               String           @db.VarChar(200)
+  email              String           @unique
+  googleId           String           @unique
+  googleRefreshToken String
+  plan               UserPlan         @default(free)
+  draftsUsed         Int              @default(0)
+  draftsReserved     Int              @default(0)
+  draftLimit         Int
+  usagePeriodStart   DateTime         @default(now()) @db.Timestamptz(3)
+  spreadsheetId      String?
+  sheetName          String           @default("Sheet1") @db.VarChar(100)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+  leadProcessing     LeadProcessing[]
+}
+
+model LeadProcessing {
+  id              String               @id @default(uuid())
+  userId          String
+  spreadsheetId   String
+  sheetName       String
+  rowNumber       Int
+  leadFingerprint String
+  status          LeadProcessingStatus @default(processing)
+  gmailDraftId    String?
+  gmailMessageId  String?
+  gmailThreadId   String?
+  usageCommitted  Boolean              @default(false)
+  errorMessage    String?
+  createdAt       DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, spreadsheetId, sheetName, rowNumber])
+  @@index([userId])
+}

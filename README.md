@@ -4,6 +4,52 @@ An AI-powered lead follow-up automation that reads new leads from Google Sheets,
 
 ![Demo](demo/Demo_GIF.gif)
 
+## Multi-User Backend
+
+The project now runs as an authenticated Node.js API backed by MongoDB. Each application user connects their own Google account through OAuth 2.0; its encrypted refresh token is used only to read that user's configured Google Sheet and create drafts in that same user's Gmail account. The application never sends an email.
+
+### Setup
+
+1. Copy `.env.example` to `.env` and provide the required values.
+2. Create a Google OAuth **Web application** client and register `http://localhost:5000/api/auth/google/callback` as an authorized redirect URI.
+3. Start MongoDB and run `npm start`.
+4. Visit `GET /api/auth/google` to sign in and connect Google.
+5. Process a selected Sheet with authenticated `POST /api/leads/process`:
+
+```json
+{
+  "spreadsheetId": "your-google-spreadsheet-id",
+  "sheetName": "Sheet1"
+}
+```
+
+### API
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Service health check |
+| `GET` | `/api/auth/google` | Begin Google OAuth sign-in/connection |
+| `GET` | `/api/auth/google/callback` | Google OAuth callback |
+| `POST` | `/api/auth/logout` | End the application session |
+| `GET` | `/api/users/me` | Current user and usage information |
+| `PUT` | `/api/users/spreadsheet` | Save the current user's Google Sheet configuration |
+| `POST` | `/api/leads/process` | Create drafts for the current user's unprocessed leads |
+
+The processing endpoint uses an HttpOnly JWT cookie (or `Authorization: Bearer <token>` for API clients). It does not accept a `userId`, Google token, or Gmail address, so one user cannot direct it to another user's Google account.
+
+`POST /api/leads/process` requires this request body:
+
+```json
+{
+  "spreadsheetId": "your-google-spreadsheet-id",
+  "sheetName": "Sheet1"
+}
+```
+
+The header row must contain `Name`, `Email`, `Company`, and `Status`. Optional `Website` and `Message`, `Context`, or `Requirement` columns are used to personalize the email. Invalid rows are marked `Failed`; rows with successful Gmail draft creation are marked `Draft Created`.
+
+Free accounts have a 20-draft monthly allowance. Draft capacity is atomically reserved before Gemini is called and released if draft creation fails. The configured Sheet is updated only after Gmail confirms its draft; if a final Sheet update fails, a later run repairs the status without creating another draft.
+
 ## Overview
 
 Following up with leads quickly is important for businesses, but manually writing personalized emails for every lead can be time-consuming.
@@ -180,7 +226,7 @@ The email is then saved as a Gmail draft for human review.
 
 ## Security
 
-Sensitive credentials are not committed to the repository.
+Sensitive credentials are not committed to the repository. The multi-user API uses Google OAuth web-client values from `.env`; the old local `credentials.json` desktop-client flow is no longer used by the application.
 
 The following files are excluded using `.gitignore`:
 
@@ -191,7 +237,7 @@ token.json
 node_modules/
 ```
 
-API keys and OAuth credentials should always be stored securely as environment variables or local credential files.
+`TOKEN_ENCRYPTION_KEY` encrypts each Google refresh token before it is stored in MongoDB. Keep API keys, OAuth values, JWT secrets, and this encryption key in environment variables only. Do not expose them to a frontend.
 
 ## Future Improvements
 
