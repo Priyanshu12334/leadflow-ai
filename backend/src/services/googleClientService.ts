@@ -1,6 +1,7 @@
 import { google } from "googleapis";
+import type { Credentials, OAuth2Client } from "google-auth-library";
 import { prisma } from "../db/prisma.js";
-import { decryptToken } from "./tokenEncryptionService.js";
+import { decryptToken, encryptToken } from "./tokenEncryptionService.js";
 import { config } from "../config/env.js";
 import type { GoogleApiError } from "../types/errors.js";
 
@@ -11,10 +12,40 @@ export class GoogleConnectionError extends Error {
   }
 }
 
+type StoredGoogleCredential = { googleId: string; googleRefreshToken: string };
+
+/** Attach a single user's decrypted refresh token to a fresh OAuth client. */
+export function configureGoogleClientForUser(
+  userId: string,
+  user: StoredGoogleCredential,
+  client: OAuth2Client,
+): { client: OAuth2Client; user: StoredGoogleCredential } {
+  let refreshToken: string;
+  try {
+    refreshToken = decryptToken(user.googleRefreshToken);
+    client.setCredentials({ refresh_token: refreshToken });
+  } catch (error) {
+    throw new GoogleConnectionError("Google connection could not be decrypted. Please reconnect your account.", error);
+  }
+
+  // A rotated token is written only to this user, with CAS protection against reconnect races.
+  client.on("tokens", (tokens: Credentials) => {
+    if (!tokens.refresh_token) return;
+    void prisma.user.updateMany({
+      where: { id: userId, googleId: user.googleId, googleRefreshToken: user.googleRefreshToken },
+      data: { googleRefreshToken: encryptToken(tokens.refresh_token) },
+    }).catch(() => {
+      // Never log OAuth library errors here: they can include credential metadata.
+      console.error("Could not persist a refreshed Google credential for authenticated user.");
+    });
+  });
+  return { client, user };
+}
+
 export async function getGoogleClient(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { googleRefreshToken: true },
+    select: { googleId: true, googleRefreshToken: true },
   });
   if (!user || !user.googleRefreshToken) {
     throw new GoogleConnectionError("Google account is not connected. Please connect it and try again.");
@@ -26,19 +57,23 @@ export async function getGoogleClient(userId: string) {
     config.googleRedirectUri,
   );
 
-  try {
-    client.setCredentials({ refresh_token: decryptToken(user.googleRefreshToken) });
-  } catch (error) {
-    throw new GoogleConnectionError("Google connection could not be decrypted. Please reconnect your account.", error);
-  }
-
-  return { client, user };
+  return configureGoogleClientForUser(userId, {
+    googleId: user.googleId,
+    googleRefreshToken: user.googleRefreshToken,
+  }, client);
 }
 
 export function isGoogleTokenError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const googleError = error as GoogleApiError;
   const status = googleError.response?.status || googleError.code;
-  const reason = googleError.response?.data?.error || googleError.message;
-  return status === 401 || reason === "invalid_grant" || /invalid_grant|invalid credentials|token.*expired/i.test(reason);
+  const values: string[] = [googleError.message];
+  const visit = (value: unknown, depth = 0): void => {
+    if (depth > 5 || value === null || value === undefined) return;
+    if (typeof value === "string") { values.push(value); return; }
+    if (Array.isArray(value)) { value.forEach((item) => visit(item, depth + 1)); return; }
+    if (typeof value === "object") Object.values(value).forEach((item) => visit(item, depth + 1));
+  };
+  visit(googleError.response?.data);
+  return status === 401 || status === "invalid_grant" || /invalid_grant|invalid credentials|token.*expired/i.test(values.join(" "));
 }

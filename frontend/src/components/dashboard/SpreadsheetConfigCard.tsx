@@ -11,7 +11,7 @@ interface SpreadsheetConfigCardProps {
 }
 
 export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardProps) => {
-  const { user, updateUserData } = useAuth();
+  const { user, updateUserData, loginWithGoogle } = useAuth();
 
   const [spreadsheetId, setSpreadsheetId] = useState(user?.spreadsheetId || '');
   const [sheetName, setSheetName] = useState(user?.sheetName || 'Sheet1');
@@ -19,6 +19,50 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [configuredSheetUrl, setConfiguredSheetUrl] = useState<string | null>(null);
+  const [tabLinkState, setTabLinkState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
+  const [tabError, setTabError] = useState<string | null>(null);
+  const [reconnectForSheets, setReconnectForSheets] = useState(false);
+
+  const apiErrorDetails = (error: unknown): { message?: string; code?: string } => {
+    if (typeof error !== 'object' || error === null || !('response' in error)) return {};
+    const response = (error as { response?: { data?: { error?: unknown; code?: unknown } } }).response;
+    return {
+      message: typeof response?.data?.error === 'string' ? response.data.error : undefined,
+      code: typeof response?.data?.code === 'string' ? response.data.code : undefined,
+    };
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.googleConnected || !user.spreadsheetId) {
+      setConfiguredSheetUrl(null);
+      setTabLinkState('idle');
+      setTabError(null);
+      setReconnectForSheets(false);
+      return () => { active = false; };
+    }
+
+    setConfiguredSheetUrl(null);
+    setTabError(null);
+    setReconnectForSheets(false);
+    setTabLinkState('loading');
+    userApi.getSpreadsheetOpenLink().then(({ url }) => {
+      if (!active) return;
+      setConfiguredSheetUrl(url);
+      setTabLinkState('ready');
+    }).catch((error: unknown) => {
+      if (!active) return;
+      const status = typeof error === 'object' && error !== null && 'response' in error
+        ? (error as { response?: { status?: number } }).response?.status : undefined;
+      const details = apiErrorDetails(error);
+      setTabError(details.message || 'Could not verify access to the configured spreadsheet.');
+      setReconnectForSheets(details.code === 'GOOGLE_SHEETS_SCOPE_REQUIRED');
+      setTabLinkState(status === 404 ? 'missing' : 'error');
+    });
+
+    return () => { active = false; };
+  }, [user?.googleConnected, user?.spreadsheetId, user?.sheetName]);
 
   useEffect(() => {
     if (user) {
@@ -55,7 +99,8 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
       if (onConfigSaved) onConfigSaved(data.user);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessage(error) || 'Failed to save spreadsheet configuration.');
+      const details = apiErrorDetails(error);
+      setErrorMessage(details.message || getErrorMessage(error) || 'Failed to save spreadsheet configuration.');
     } finally {
       setSaving(false);
     }
@@ -174,19 +219,33 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
 
         {/* Footer actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 border-t border-[#2a2d3a]">
-          {spreadsheetId && isValidSpreadsheetId(spreadsheetId) ? (
-            <a
-              href={`https://docs.google.com/spreadsheets/d/${spreadsheetId.trim()}/edit`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md bg-[#187935] border-[#188038] px-3 py-2 text-xs font-medium text-white hover:bg-[#177433] transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              Open in Google Sheets
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+          {user?.spreadsheetId && isValidSpreadsheetId(user.spreadsheetId) && user.googleConnected ? (
+            <div className="flex flex-col gap-2">
+              <a
+                href={configuredSheetUrl || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(user.spreadsheetId)}/edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 self-start rounded-md bg-[#187935] border-[#188038] px-3 py-2 text-xs font-medium text-white hover:bg-[#177433] transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Open in Google Sheets
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+              {tabLinkState === 'loading' && <span className="text-xs text-slate-400">Verifying configured tab…</span>}
+              {tabLinkState === 'missing' && <span className="text-xs text-amber-400">{tabError || `Configured tab "${user.sheetName}" was not found. Check its name and save your settings.`}</span>}
+              {tabLinkState === 'error' && (
+                <>
+                  <span className="text-xs text-amber-400">{tabError || 'Could not verify the configured tab. The workbook link above is still available.'}</span>
+                  {reconnectForSheets && (
+                    <button type="button" onClick={loginWithGoogle} className="self-start text-xs text-indigo-400 hover:text-indigo-300">
+                      Reconnect Google and approve Sheets access
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           ) : (
-            <span className="text-xs text-slate-500">Enter a valid ID to enable the sheet link</span>
+            <span className="text-xs text-slate-500">Save a spreadsheet and connect Google to enable the sheet link</span>
           )}
 
           <button

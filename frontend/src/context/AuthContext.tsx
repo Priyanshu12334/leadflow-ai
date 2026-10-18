@@ -13,6 +13,7 @@ interface AuthContextValue {
   loginWithGoogle: () => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  disconnectGoogle: () => Promise<void>;
   updateUserData: (updatedUser: User) => void;
 }
 
@@ -61,6 +62,11 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     setUser(updatedUser);
   };
 
+  const disconnectGoogle = async (): Promise<void> => {
+    const data = await userApi.disconnectGoogle();
+    setUser(data.user);
+  };
+
   const value = {
     user,
     loading,
@@ -69,6 +75,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     loginWithGoogle,
     logout,
     refreshUser: fetchCurrentUser,
+    disconnectGoogle,
     updateUserData,
   };
 

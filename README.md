@@ -6,49 +6,72 @@ An AI-powered lead follow-up automation that reads new leads from Google Sheets,
 
 ## Multi-User Backend
 
-The project now runs as an authenticated Node.js API backed by MongoDB. Each application user connects their own Google account through OAuth 2.0; its encrypted refresh token is used only to read that user's configured Google Sheet and create drafts in that same user's Gmail account. The application never sends an email.
+LeadFlow uses an authenticated Node.js API and PostgreSQL through Prisma. Each Google identity maps to one LeadFlow user. That user's encrypted refresh token, spreadsheet settings, Gmail drafts, processing records and monthly quota are isolated by the authenticated user ID. The app creates Gmail drafts for review and never sends email.
 
-### Setup
+### Local setup
 
-1. Copy `.env.example` to `.env` and provide the required values.
-2. Create a Google OAuth **Web application** client and register `http://localhost:5000/api/auth/google/callback` as an authorized redirect URI.
-3. Start MongoDB and run `npm start`.
-4. Visit `GET /api/auth/google` to sign in and connect Google.
-5. Process a selected Sheet with authenticated `POST /api/leads/process`:
+1. Install PostgreSQL and create a database for LeadFlow.
+2. Copy `backend/.env.example` to `backend/.env` and set the local values. Generate `TOKEN_ENCRYPTION_KEY` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`; use a different long random value for `JWT_SECRET`.
+3. In Google Cloud, enable the Gmail API and Google Sheets API, create an OAuth **Web application** client, add `http://localhost:5000/api/auth/google/callback` as an authorized redirect URI, and add `http://localhost:5173` as an authorized JavaScript origin. Add the required Google test accounts to the consent screen while the app is in testing mode.
+4. Set up a Gemini API key in `GEMINI_API_KEY`.
+5. Apply migrations and start the backend:
 
-```json
-{
-  "spreadsheetId": "your-google-spreadsheet-id",
-  "sheetName": "Sheet1"
-}
+```powershell
+cd backend
+npm ci
+npx prisma migrate deploy
+npx prisma generate
+npm run build
+npm start
 ```
 
-### API
+6. In another terminal, start the frontend:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+7. Visit `http://localhost:5173`, sign in with Google, save a spreadsheet ID and tab name, then process leads from the dashboard.
+
+### API and account lifecycle
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Service health check |
-| `GET` | `/api/auth/google` | Begin Google OAuth sign-in/connection |
-| `GET` | `/api/auth/google/callback` | Google OAuth callback |
-| `POST` | `/api/auth/logout` | End the application session |
+| `GET` | `/api/auth/google` | Begin Google sign-in or reconnect |
+| `GET` | `/api/auth/google/callback` | Validate OAuth state and finish sign-in |
+| `POST` | `/api/auth/logout` | Clear the LeadFlow session cookie |
 | `GET` | `/api/users/me` | Current user and usage information |
-| `PUT` | `/api/users/spreadsheet` | Save the current user's Google Sheet configuration |
-| `POST` | `/api/leads/process` | Create drafts for the current user's unprocessed leads |
+| `PUT` | `/api/users/spreadsheet` | Save the authenticated user's spreadsheet configuration |
+| `DELETE` | `/api/users/google` | Revoke Google access where possible and disconnect it from LeadFlow |
+| `POST` | `/api/leads/process` | Process the authenticated user's saved spreadsheet |
 
-The processing endpoint uses an HttpOnly JWT cookie (or `Authorization: Bearer <token>` for API clients). It does not accept a `userId`, Google token, or Gmail address, so one user cannot direct it to another user's Google account.
+Private API routes require the HttpOnly session cookie or a bearer token. They derive the user ID from that verified session; clients cannot submit a target user ID, token or Gmail address. The processing endpoint uses the spreadsheet saved to that account. Spreadsheet ownership and access are still enforced by Google's own API permissions.
 
-`POST /api/leads/process` requires this request body:
+Disconnecting Google removes the encrypted credential and saved spreadsheet configuration while retaining the LeadFlow account, quota and processing history. Reconnect with the same Google identity; sign out before signing in as a different Google user. Logout ends the LeadFlow session and does not delete account data.
 
-```json
-{
-  "spreadsheetId": "your-google-spreadsheet-id",
-  "sheetName": "Sheet1"
-}
+The sheet header must include `Name`, `Email` and `Company`. Optional `Status`, `Website`, and `Message`, `Context` or `Requirement` columns are used when present. Existing duplicate prevention is scoped by user, spreadsheet, tab and row. Free accounts have a 20-draft monthly allowance by default; quota reservation is atomic and per user.
+
+### Production Google configuration
+
+Use HTTPS origins and redirect URIs that exactly match the deployed application, set `NODE_ENV=production`, `FRONTEND_ORIGIN`, `CLIENT_SUCCESS_URL`, `GOOGLE_REDIRECT_URI`, and the frontend API URL for that deployment. Configure the OAuth consent screen with the production app name, support email, authorized domains, privacy policy and terms URL. Publish the consent screen and complete Google's verification for the Gmail/Sheets scopes before general availability; Google may require additional review based on the scopes and account type. Keep OAuth client secrets, Gemini keys, `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` in a managed secret store. Back up the encryption key securely: stored refresh tokens cannot be decrypted if that key is lost or changed without re-encrypting the data.
+
+For production database deployments, run `npx prisma migrate deploy` as a release step. For local schema development, use `npm run prisma:migrate` to create and apply a migration.
+
+### Tests
+
+Run the backend suite with `cd backend; npm test`. The PostgreSQL two-user isolation test is enabled only when `TEST_DATABASE_URL` points to a dedicated disposable test database with the migrations applied. In PowerShell:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://user:password@localhost:5432/leadflow_test?schema=public"
+$env:DATABASE_URL = $env:TEST_DATABASE_URL
+npx prisma migrate deploy
+npm test
 ```
 
-The header row must contain `Name`, `Email`, `Company`, and `Status`. Optional `Website` and `Message`, `Context`, or `Requirement` columns are used to personalize the email. Invalid rows are marked `Failed`; rows with successful Gmail draft creation are marked `Draft Created`.
-
-Free accounts have a 20-draft monthly allowance. Draft capacity is atomically reserved before Gemini is called and released if draft creation fails. The configured Sheet is updated only after Gmail confirms its draft; if a final Sheet update fails, a later run repairs the status without creating another draft.
+The normal suite skips that database integration test when `TEST_DATABASE_URL` is unset.
 
 ## Overview
 
@@ -237,7 +260,7 @@ token.json
 node_modules/
 ```
 
-`TOKEN_ENCRYPTION_KEY` encrypts each Google refresh token before it is stored in MongoDB. Keep API keys, OAuth values, JWT secrets, and this encryption key in environment variables only. Do not expose them to a frontend.
+`TOKEN_ENCRYPTION_KEY` encrypts each Google refresh token before it is stored in PostgreSQL. Keep API keys, OAuth values, JWT secrets, and this encryption key in environment variables only. Do not expose them to a frontend. The committed `.env.example` files contain placeholders only.
 
 ## Future Improvements
 

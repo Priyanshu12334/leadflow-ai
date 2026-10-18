@@ -23,7 +23,7 @@ model User {
   name               String           @db.VarChar(200)
   email              String           @unique
   googleId           String           @unique
-  googleRefreshToken String
+  googleRefreshToken String?
   plan               UserPlan         @default(free)
   draftsUsed         Int              @default(0)
   draftsReserved     Int              @default(0)

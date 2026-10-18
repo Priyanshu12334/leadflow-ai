@@ -7,7 +7,8 @@ export function createOAuthClient() {
 export function getGoogleAuthorizationUrl(state) {
     return createOAuthClient().generateAuthUrl({
         access_type: "offline",
-        prompt: "consent",
+        include_granted_scopes: true,
+        prompt: "consent select_account",
         scope: [...GOOGLE_SCOPES],
         state,
     });

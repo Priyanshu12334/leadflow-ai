@@ -1,11 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { CheckCircle2, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, RefreshCw, ShieldCheck, Unplug } from 'lucide-react';
 import { GoogleIcon } from '../common/GoogleIcon';
+import { getErrorMessage } from '../../types';
 
 export const GoogleStatusCard = () => {
-  const { user, loginWithGoogle } = useAuth();
+  const { user, loginWithGoogle, disconnectGoogle } = useAuth();
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const isConnected = Boolean(user?.googleConnected);
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Disconnect Google access? Your LeadFlow account, quota, and processing history will remain.')) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await disconnectGoogle();
+    } catch (disconnectError: unknown) {
+      setError(getErrorMessage(disconnectError) || 'Could not disconnect Google. Please try again.');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   return (
     <div className="bg-[#1a1d27] border border-[#2a2d3a] rounded-lg p-5">
@@ -50,18 +66,33 @@ export const GoogleStatusCard = () => {
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between">
+      {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
+      <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-slate-600 flex items-center gap-1">
           <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
           OAuth 2.0 secured
         </span>
-        <button
-          onClick={loginWithGoogle}
-          className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-md transition-colors cursor-pointer"
-        >
-          <RefreshCw className="w-3 h-3" />
-          {isConnected ? 'Reconnect' : 'Connect Google'}
-        </button>
+        <div className="flex items-center gap-2">
+          {isConnected && (
+            <button
+              type="button"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="flex items-center gap-1.5 text-xs font-medium border border-[#2a2d3a] text-slate-300 hover:text-red-300 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <Unplug className="w-3 h-3" />
+              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={loginWithGoogle}
+            className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            {isConnected ? 'Reconnect' : 'Connect Google'}
+          </button>
+        </div>
       </div>
     </div>
   );

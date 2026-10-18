@@ -5,10 +5,12 @@ import { HowItWorks } from '../components/landing/HowItWorks';
 import { Pricing } from '../components/landing/Pricing';
 import { FAQ } from '../components/landing/FAQ';
 import { CtaSection } from '../components/landing/CtaSection';
+import { OAuthFeedback } from '../components/common/OAuthFeedback';
 
 export const LandingPage = () => {
   return (
     <div>
+      <OAuthFeedback />
       <Hero />
       <Features />
       <HowItWorks />

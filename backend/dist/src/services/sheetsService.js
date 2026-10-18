@@ -18,6 +18,59 @@ export class SpreadsheetValidationError extends Error {
         this.name = "SpreadsheetValidationError";
     }
 }
+export class GoogleSheetsPermissionError extends Error {
+    code;
+    userId;
+    diagnosticReason;
+    constructor(code, message, userId, diagnosticReason) {
+        super(message);
+        this.name = "GoogleSheetsPermissionError";
+        this.code = code;
+        this.userId = userId;
+        this.diagnosticReason = diagnosticReason;
+    }
+}
+function googleErrorReason(error) {
+    if (typeof error !== "object" || error === null || !("response" in error))
+        return "";
+    const response = error.response;
+    if (typeof response !== "object" || response === null || !("data" in response))
+        return "";
+    const data = response.data;
+    if (typeof data !== "object" || data === null || !("error" in data))
+        return "";
+    const details = data.error;
+    const strings = [];
+    const visit = (value, depth = 0) => {
+        if (depth > 6 || value === null || value === undefined)
+            return;
+        if (typeof value === "string") {
+            strings.push(value);
+            return;
+        }
+        if (Array.isArray(value)) {
+            value.forEach((item) => visit(item, depth + 1));
+            return;
+        }
+        if (typeof value === "object")
+            Object.values(value).forEach((item) => visit(item, depth + 1));
+    };
+    visit(details);
+    return strings.join(" ").toLowerCase();
+}
+export function classifyGoogleSheetsPermissionFailure(error) {
+    const reason = googleErrorReason(error);
+    if (/insufficientpermissions|access_token_scope_insufficient|insufficient authentication scopes/.test(reason)) {
+        return { code: "GOOGLE_SHEETS_SCOPE_REQUIRED", diagnosticReason: "insufficient_oauth_scope" };
+    }
+    if (/accessnotconfigured|api_disabled|has not been used in project/.test(reason)) {
+        return { code: "GOOGLE_SHEETS_FORBIDDEN_UNKNOWN", diagnosticReason: "google_api_not_enabled_or_configured" };
+    }
+    if (/caller does not have permission|does not have permission|permission_denied|insufficient permissions/.test(reason)) {
+        return { code: "GOOGLE_SHEET_ACCESS_DENIED", diagnosticReason: "google_resource_permission_denied" };
+    }
+    return { code: "GOOGLE_SHEETS_FORBIDDEN_UNKNOWN", diagnosticReason: "unclassified_google_403" };
+}
 function quotedSheetName(sheetName) {
     return `'${sheetName.replace(/'/g, "''")}'`;
 }
@@ -86,9 +139,39 @@ async function getUserSheet(userId, spreadsheetId, sheetName) {
         sheetName,
     };
 }
-function mapGoogleError(error) {
+export function findSheetIdByTitle(sheets, sheetName) {
+    const match = sheets?.find((sheet) => sheet.properties?.title === sheetName);
+    const sheetId = match?.properties?.sheetId;
+    return typeof sheetId === "number" && Number.isSafeInteger(sheetId) && sheetId >= 0 ? sheetId : null;
+}
+export async function getConfiguredSheetId(userId, spreadsheetId, sheetName) {
+    try {
+        const { client } = await getGoogleClient(userId);
+        const response = await google.sheets({ version: "v4", auth: client }).spreadsheets.get({
+            spreadsheetId,
+            fields: "sheets(properties(sheetId,title))",
+        });
+        return findSheetIdByTitle(response.data.sheets, sheetName);
+    }
+    catch (error) {
+        mapGoogleError(error, userId);
+    }
+}
+function mapGoogleError(error, userId) {
     if (isGoogleTokenError(error)) {
         throw new GoogleConnectionError("Google connection expired or was revoked. Please reconnect your account.", error);
+    }
+    const status = typeof error === "object" && error !== null && "response" in error
+        && typeof error.response === "object" && error.response !== null && "status" in error.response
+        ? error.response.status : undefined;
+    if (status === 403) {
+        const { code, diagnosticReason } = classifyGoogleSheetsPermissionFailure(error);
+        if (code === "GOOGLE_SHEETS_SCOPE_REQUIRED") {
+            throw new GoogleSheetsPermissionError("GOOGLE_SHEETS_SCOPE_REQUIRED", "This Google connection is missing Sheets permission. Reconnect Google and approve the requested Sheets access.", userId, diagnosticReason);
+        }
+        throw new GoogleSheetsPermissionError(code, code === "GOOGLE_SHEET_ACCESS_DENIED"
+            ? "The connected Google account cannot access this spreadsheet. Share it with the connected account or choose a spreadsheet that account can access."
+            : "Google denied the Sheets request. Check Google Cloud API configuration and the connected account's access.", userId, diagnosticReason);
     }
     throw error;
 }
@@ -103,7 +186,7 @@ export async function getLeads(userId, { spreadsheetId, sheetName }) {
         return parseLeads(rows, { spreadsheetId, sheetName });
     }
     catch (error) {
-        mapGoogleError(error);
+        mapGoogleError(error, userId);
     }
 }
 export async function updateLeadStatus(userId, lead, status, draftId, messageId, threadId) {
@@ -145,6 +228,6 @@ export async function updateLeadStatus(userId, lead, status, draftId, messageId,
         });
     }
     catch (error) {
-        mapGoogleError(error);
+        mapGoogleError(error, userId);
     }
 }

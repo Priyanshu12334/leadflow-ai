@@ -6,12 +6,14 @@ import { SpreadsheetConfigCard } from '../components/dashboard/SpreadsheetConfig
 import { ProcessLeadsCard } from '../components/dashboard/ProcessLeadsCard';
 import { ProcessingResultsPanel } from '../components/dashboard/ProcessingResultsPanel';
 import type { LeadProcessingResult } from '../types';
+import { OAuthFeedback } from '../components/common/OAuthFeedback';
 
 export const DashboardPage = () => {
   const [lastResults, setLastResults] = useState<LeadProcessingResult | null>(null);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <OAuthFeedback />
       {/* Page Header */}
       <div className="mb-6">
         <DashboardHeader />

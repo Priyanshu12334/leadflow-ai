@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SpreadsheetValidationError, parseLeads, updateLeadStatus } from "../src/services/sheetsService.js";
+import { GOOGLE_SCOPES } from "../src/config/constants.js";
+import { SpreadsheetValidationError, classifyGoogleSheetsPermissionFailure, findSheetIdByTitle, parseLeads, updateLeadStatus } from "../src/services/sheetsService.js";
 import type { Lead } from "../src/types/domain.js";
 
 test("parses named lead columns and finds the Status column", () => {
@@ -15,6 +16,33 @@ test("parses named lead columns and finds the Status column", () => {
   assert.equal(leads[0].draftId, "");
   assert.equal(leads[0].draftIdColumn, null);
   assert.deepEqual(leads[0].validationErrors, []);
+});
+
+test("resolves the configured tab to Google's numeric gid and handles missing tabs", () => {
+  const metadata = [
+    { properties: { sheetId: 0, title: "Sheet1" } },
+    { properties: { sheetId: 84729163, title: "Sheet2" } },
+  ];
+  assert.equal(findSheetIdByTitle(metadata, "Sheet2"), 84729163);
+  assert.equal(findSheetIdByTitle(metadata, "Renamed tab"), null);
+  assert.equal(findSheetIdByTitle(undefined, "Sheet1"), null);
+});
+
+test("inspects Google error details before classifying a Sheets 403", () => {
+  assert.equal(classifyGoogleSheetsPermissionFailure({
+    response: { status: 403, data: { error: { status: "PERMISSION_DENIED", details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } } },
+  }).code, "GOOGLE_SHEETS_SCOPE_REQUIRED");
+  assert.equal(classifyGoogleSheetsPermissionFailure({
+    response: { status: 403, data: { error: { status: "PERMISSION_DENIED", message: "The caller does not have permission" } } },
+  }).code, "GOOGLE_SHEET_ACCESS_DENIED");
+  assert.equal(classifyGoogleSheetsPermissionFailure({
+    response: { status: 403, data: { error: { status: "PERMISSION_DENIED", message: "Google Sheets API has not been used in project" } } },
+  }).diagnosticReason, "google_api_not_enabled_or_configured");
+});
+
+test("OAuth requests per-user Sheets and Gmail draft scopes", () => {
+  assert.ok(GOOGLE_SCOPES.includes("https://www.googleapis.com/auth/spreadsheets"));
+  assert.ok(GOOGLE_SCOPES.includes("https://www.googleapis.com/auth/gmail.compose"));
 });
 
 test("parses optional Gmail draft, message, and thread IDs from the sheet", () => {

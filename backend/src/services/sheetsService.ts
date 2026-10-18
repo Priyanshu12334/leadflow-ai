@@ -23,6 +23,54 @@ export class SpreadsheetValidationError extends Error {
   }
 }
 
+export type GoogleSheetsPermissionCode = "GOOGLE_SHEETS_SCOPE_REQUIRED" | "GOOGLE_SHEET_ACCESS_DENIED" | "GOOGLE_SHEETS_FORBIDDEN_UNKNOWN";
+
+export class GoogleSheetsPermissionError extends Error {
+  readonly code: GoogleSheetsPermissionCode;
+  readonly userId: string;
+  readonly diagnosticReason: string;
+
+  constructor(code: GoogleSheetsPermissionCode, message: string, userId: string, diagnosticReason: string) {
+    super(message);
+    this.name = "GoogleSheetsPermissionError";
+    this.code = code;
+    this.userId = userId;
+    this.diagnosticReason = diagnosticReason;
+  }
+}
+
+function googleErrorReason(error: unknown): string {
+  if (typeof error !== "object" || error === null || !("response" in error)) return "";
+  const response = error.response;
+  if (typeof response !== "object" || response === null || !("data" in response)) return "";
+  const data = response.data;
+  if (typeof data !== "object" || data === null || !("error" in data)) return "";
+  const details = data.error;
+  const strings: string[] = [];
+  const visit = (value: unknown, depth = 0): void => {
+    if (depth > 6 || value === null || value === undefined) return;
+    if (typeof value === "string") { strings.push(value); return; }
+    if (Array.isArray(value)) { value.forEach((item) => visit(item, depth + 1)); return; }
+    if (typeof value === "object") Object.values(value).forEach((item) => visit(item, depth + 1));
+  };
+  visit(details);
+  return strings.join(" ").toLowerCase();
+}
+
+export function classifyGoogleSheetsPermissionFailure(error: unknown): { code: GoogleSheetsPermissionCode; diagnosticReason: string } {
+  const reason = googleErrorReason(error);
+  if (/insufficientpermissions|access_token_scope_insufficient|insufficient authentication scopes/.test(reason)) {
+    return { code: "GOOGLE_SHEETS_SCOPE_REQUIRED", diagnosticReason: "insufficient_oauth_scope" };
+  }
+  if (/accessnotconfigured|api_disabled|has not been used in project/.test(reason)) {
+    return { code: "GOOGLE_SHEETS_FORBIDDEN_UNKNOWN", diagnosticReason: "google_api_not_enabled_or_configured" };
+  }
+  if (/caller does not have permission|does not have permission|permission_denied|insufficient permissions/.test(reason)) {
+    return { code: "GOOGLE_SHEET_ACCESS_DENIED", diagnosticReason: "google_resource_permission_denied" };
+  }
+  return { code: "GOOGLE_SHEETS_FORBIDDEN_UNKNOWN", diagnosticReason: "unclassified_google_403" };
+}
+
 function quotedSheetName(sheetName: string): string {
   return `'${sheetName.replace(/'/g, "''")}'`;
 }
@@ -98,9 +146,51 @@ async function getUserSheet(userId: string, spreadsheetId: string, sheetName: st
   };
 }
 
-function mapGoogleError(error: unknown): never {
+export function findSheetIdByTitle(
+  sheets: Array<{ properties?: { sheetId?: number | null; title?: string | null } }> | undefined,
+  sheetName: string,
+): number | null {
+  const match = sheets?.find((sheet) => sheet.properties?.title === sheetName);
+  const sheetId = match?.properties?.sheetId;
+  return typeof sheetId === "number" && Number.isSafeInteger(sheetId) && sheetId >= 0 ? sheetId : null;
+}
+
+export async function getConfiguredSheetId(userId: string, spreadsheetId: string, sheetName: string): Promise<number | null> {
+  try {
+    const { client } = await getGoogleClient(userId);
+    const response = await google.sheets({ version: "v4", auth: client }).spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets(properties(sheetId,title))",
+    });
+    return findSheetIdByTitle(response.data.sheets, sheetName);
+  } catch (error) {
+    mapGoogleError(error, userId);
+  }
+}
+
+function mapGoogleError(error: unknown, userId: string): never {
   if (isGoogleTokenError(error)) {
     throw new GoogleConnectionError("Google connection expired or was revoked. Please reconnect your account.", error);
+  }
+  const status = typeof error === "object" && error !== null && "response" in error
+    && typeof error.response === "object" && error.response !== null && "status" in error.response
+    ? error.response.status : undefined;
+  if (status === 403) {
+    const { code, diagnosticReason } = classifyGoogleSheetsPermissionFailure(error);
+    if (code === "GOOGLE_SHEETS_SCOPE_REQUIRED") {
+      throw new GoogleSheetsPermissionError(
+        "GOOGLE_SHEETS_SCOPE_REQUIRED",
+        "This Google connection is missing Sheets permission. Reconnect Google and approve the requested Sheets access.",
+        userId,
+        diagnosticReason,
+      );
+    }
+    throw new GoogleSheetsPermissionError(code,
+      code === "GOOGLE_SHEET_ACCESS_DENIED"
+        ? "The connected Google account cannot access this spreadsheet. Share it with the connected account or choose a spreadsheet that account can access."
+        : "Google denied the Sheets request. Check Google Cloud API configuration and the connected account's access.",
+      userId,
+      diagnosticReason);
   }
   throw error;
 }
@@ -115,7 +205,7 @@ export async function getLeads(userId: string, { spreadsheetId, sheetName }: Spr
     const rows = response.data.values || [];
     return parseLeads(rows, { spreadsheetId, sheetName });
   } catch (error) {
-    mapGoogleError(error);
+    mapGoogleError(error, userId);
   }
 }
 
@@ -164,6 +254,6 @@ export async function updateLeadStatus(
       },
     });
   } catch (error) {
-    mapGoogleError(error);
+    mapGoogleError(error, userId);
   }
 }

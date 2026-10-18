@@ -87,12 +87,7 @@ async function releaseDraftUsage(userId: UserId): Promise<void> {
 
 async function claimLeadForCreation(userId: UserId, lead: Lead) {
   const fingerprint = leadFingerprint(lead);
-  const filter = {
-    userId,
-    spreadsheetId: lead.spreadsheetId,
-    sheetName: lead.sheetName,
-    rowNumber: lead.rowNumber,
-  };
+  const filter = leadRecordFilter(userId, lead);
   const existing = await prisma.leadProcessing.findUnique({
     where: { userId_spreadsheetId_sheetName_rowNumber: filter },
   });
@@ -138,7 +133,7 @@ async function claimLeadForCreation(userId: UserId, lead: Lead) {
   }
 }
 
-function leadRecordFilter(userId: UserId, lead: Lead) {
+export function leadRecordFilter(userId: UserId, lead: Lead) {
   return {
     userId,
     spreadsheetId: lead.spreadsheetId,

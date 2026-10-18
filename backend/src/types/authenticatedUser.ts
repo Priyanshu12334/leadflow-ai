@@ -5,6 +5,7 @@ export const authenticatedUserSelect = {
   name: true,
   email: true,
   googleId: true,
+  googleRefreshToken: true,
   plan: true,
   draftsUsed: true,
   draftLimit: true,
