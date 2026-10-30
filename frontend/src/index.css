@@ -1,7 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Roboto", Arial, sans-serif;
+  --color-slate-400: #b0bac8;
   --color-slate-500: #a0a9b7;
   --color-slate-600: #8792a2;
 }
@@ -23,33 +25,59 @@
 
   body {
     font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 400;
     background-color: var(--color-bg);
     color: var(--color-text);
-    line-height: 1.5;
-    overflow-x: hidden;
+    line-height: 1.6;
+    letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  button,
-  input,
-  select,
-  textarea {
-    font-family: inherit;
+  :where(button, input, select, textarea) {
+    font: inherit;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    letter-spacing: -0.02em;
+  h1, h2, h3, h4, h5, h6 {
+    color: inherit;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+  }
+
+  h1 { font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 700; }
+  h2 { font-size: 1.5rem; font-weight: 600; }
+  h3 { font-size: 1.25rem; font-weight: 600; }
+  h4, h5, h6 { font-size: 1rem; font-weight: 600; }
+
+  p, li, label, small {
+    font-weight: 500;
+  }
+
+  p {
+    line-height: 1.6;
+  }
+
+  nav a, button {
+    font-weight: 500;
+  }
+
+  strong, b, [data-metric] {
+    font-weight: 700;
   }
 
   * {
     box-sizing: border-box;
   }
+}
+
+/* Keep semantic page titles at the same weight across pages with utility classes. */
+h1[class] {
+  font-weight: 700;
+}
+
+p[class]:not([class~="font-bold"]):not([class~="font-semibold"]):not([class~="font-extrabold"]) {
+  font-weight: 500;
 }
 
 /* Custom Scrollbar */

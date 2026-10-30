@@ -35,6 +35,8 @@ export const ProcessLeadsCard = ({ onProcessingComplete }: ProcessLeadsCardProps
           ...user,
           draftsUsed: result.draftsUsed,
           draftLimit: result.draftLimit || user.draftLimit,
+          usagePeriodStart: result.usagePeriodStart || user.usagePeriodStart,
+          usagePeriodResetAt: result.usagePeriodResetAt || user.usagePeriodResetAt,
         });
       }
 

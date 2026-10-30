@@ -11,6 +11,11 @@ const sizes = {
     name: 'text-base',
     tagline: 'text-[8px] tracking-[0.12em]',
   },
+  sidebar: {
+    icon: 'w-8 h-8',
+    name: 'text-[15px]',
+    tagline: 'text-[7.5px] tracking-[0.07em]',
+  },
 } as const;
 
 interface LeadFlowBrandProps {

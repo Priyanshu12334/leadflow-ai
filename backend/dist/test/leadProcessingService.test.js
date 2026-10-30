@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mergeLeadTracking, processLeadsIndependently, summarizeProcessingResults } from "../src/services/leadProcessingService.js";
+import { mergeLeadTracking, processLeadsIndependently, summarizeProcessingResults, usagePeriodResetAt } from "../src/services/leadProcessingService.js";
 import { withGeminiRetries } from "../src/services/geminiService.js";
 function testLead(overrides = {}) {
     return {
@@ -24,6 +24,10 @@ function testLead(overrides = {}) {
         ...overrides,
     };
 }
+test("usage cycles reset exactly 30 days after the user's cycle start", () => {
+    assert.equal(usagePeriodResetAt(new Date("2026-10-07T12:34:56.000Z")).toISOString(), "2026-11-06T12:34:56.000Z");
+    assert.equal(usagePeriodResetAt(new Date("2026-01-31T00:00:00.000Z")).toISOString(), "2026-03-02T00:00:00.000Z");
+});
 test("Gemini retries temporary 503/429 errors twice with bounded exponential delays", async () => {
     const delays = [];
     let attempts = 0;

@@ -4,13 +4,36 @@ services:
     container_name: leadflow-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: leadflow123
-      POSTGRES_DB: leadflow
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in backend/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-leadflow}
     ports:
       - "5433:5432"
     volumes:
       - leadflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-leadflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER in backend/.env using leadflow-postgres:5432}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI_DOCKER:?Set GOOGLE_REDIRECT_URI_DOCKER to the Docker callback URL}
+    ports:
+      - "5001:5000"
+    depends_on:
+      leadflow-postgres:
+        condition: service_healthy
 
 volumes:
   leadflow_postgres_data:

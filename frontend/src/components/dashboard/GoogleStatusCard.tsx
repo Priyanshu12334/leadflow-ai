@@ -69,7 +69,7 @@ export const GoogleStatusCard = () => {
       {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-slate-600 flex items-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
+         
           OAuth 2.0 secured
         </span>
         <div className="flex items-center gap-2">

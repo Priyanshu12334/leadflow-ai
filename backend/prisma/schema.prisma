@@ -43,7 +43,8 @@ model LeadProcessing {
   sheetName       String
   rowNumber       Int
   leadFingerprint String
-  status          LeadProcessingStatus @default(processing)
+  status          LeadProcessingStatus?
+  nextFollowUpDate DateTime?             @db.Date
   gmailDraftId    String?
   gmailMessageId  String?
   gmailThreadId   String?

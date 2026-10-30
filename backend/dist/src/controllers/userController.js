@@ -3,6 +3,7 @@ import { authenticatedUserSelect } from "../types/authenticatedUser.js";
 import { decryptToken } from "../services/tokenEncryptionService.js";
 import { createOAuthClient } from "../services/googleOAuthService.js";
 import { getConfiguredSheetId } from "../services/sheetsService.js";
+import { refreshUsageCycle, usagePeriodResetAt } from "../services/leadProcessingService.js";
 function publicUser(user) {
     return {
         id: user.id,
@@ -12,16 +13,23 @@ function publicUser(user) {
         draftsUsed: user.draftsUsed,
         draftLimit: user.draftLimit,
         usagePeriodStart: user.usagePeriodStart,
+        usagePeriodResetAt: user.usagePeriodResetAt ?? usagePeriodResetAt(user.usagePeriodStart),
         googleConnected: Boolean(user.googleRefreshToken),
         spreadsheetId: user.spreadsheetId,
         sheetName: user.sheetName,
         createdAt: user.createdAt,
     };
 }
-export const getCurrentUser = (req, res) => {
+export const getCurrentUser = async (req, res, next) => {
     if (!req.user)
         return res.status(401).json({ error: "Authentication is required." });
-    res.json({ user: publicUser(req.user) });
+    try {
+        const user = await refreshUsageCycle(req.user.id);
+        res.json({ user: publicUser(user) });
+    }
+    catch (error) {
+        next(error);
+    }
 };
 export const getSpreadsheetOpenLink = async (req, res, next) => {
     try {

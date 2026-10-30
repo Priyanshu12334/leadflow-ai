@@ -10,6 +10,7 @@ const plans = [
     description: 'For testing and early-stage exploration.',
     drafts: '20 drafts / month',
     highlighted: false,
+    comingSoon: false,
     cta: 'Get started free',
     features: [
       '20 Gemini AI drafts per month',
@@ -26,7 +27,8 @@ const plans = [
     description: 'For active SDRs and sales teams.',
     drafts: '1,000 drafts / month',
     highlighted: true,
-    cta: 'Start 14-day trial',
+    comingSoon: true,
+    cta: 'Coming Soon',
     features: [
       '1,000 Gemini AI drafts per month',
       'Unlimited Sheet connections',
@@ -43,7 +45,8 @@ const plans = [
     description: 'For agencies and high-volume teams.',
     drafts: '5,000+ drafts / month',
     highlighted: false,
-    cta: 'Contact sales',
+    comingSoon: true,
+    cta: 'Coming Soon',
     features: [
       '5,000+ Gemini AI drafts per month',
       'Multi-account Google OAuth',
@@ -116,6 +119,11 @@ export const Pricing = () => {
                   </span>
                 </div>
               )}
+              {plan.comingSoon && (
+                <span className="absolute top-4 right-4 text-[10px] font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2 py-1 rounded-full uppercase tracking-wide">
+                  Coming Soon
+                </span>
+              )}
 
               <div className="p-6 flex-1">
                 <h3 className="text-sm font-semibold text-slate-200">{plan.name}</h3>
@@ -142,11 +150,14 @@ export const Pricing = () => {
 
               <div className="px-6 pb-6">
                 <button
-                  onClick={loginWithGoogle}
-                  className={`w-full py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${
-                    plan.highlighted
-                      ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                      : 'bg-[#0f1117] hover:bg-[#1e2130] text-slate-300 border border-[#2a2d3a] hover:border-slate-500'
+                  onClick={plan.comingSoon ? undefined : loginWithGoogle}
+                  disabled={plan.comingSoon}
+                  className={`w-full py-2 text-sm font-medium rounded-md transition-colors ${
+                    plan.comingSoon
+                      ? 'bg-[#0f1117] text-slate-500 border border-[#2a2d3a] cursor-not-allowed'
+                      : plan.highlighted
+                      ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer'
+                      : 'bg-[#0f1117] hover:bg-[#1e2130] text-slate-300 border border-[#2a2d3a] hover:border-slate-500 cursor-pointer'
                   }`}
                 >
                   {plan.cta}

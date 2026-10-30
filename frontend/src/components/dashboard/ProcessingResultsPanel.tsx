@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Mail, ExternalLink, ChartNoAxesCombined, AlertTriangle, Info, X } from 'lucide-react';
+import { Mail, ExternalLink, ChartNoAxesCombined, AlertTriangle, Info } from 'lucide-react';
 import type { LeadProcessingResult } from '../../types';
 
 interface ProcessingResultsPanelProps {
@@ -8,7 +8,7 @@ interface ProcessingResultsPanelProps {
   onClear?: () => void;
 }
 
-export const ProcessingResultsPanel = ({ results, onClear }: ProcessingResultsPanelProps) => {
+export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps) => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [popoverTop, setPopoverTop] = useState(0);
   const helpRef = useRef<HTMLDivElement>(null);
@@ -119,18 +119,8 @@ export const ProcessingResultsPanel = ({ results, onClear }: ProcessingResultsPa
           >
             <Mail className="w-3.5 h-3.5" />
             Open Gmail Drafts
-            <ExternalLink className="w-3 h-3 opacity-60" />
+            <ExternalLink className="w-3 h-3 text-white" />
           </a>
-
-          {onClear && (
-            <button
-              onClick={onClear}
-              className="p-1.5 text-slate-500 hover:text-slate-200 hover:bg-[#1e2130] rounded-md transition-colors cursor-pointer"
-              title="Dismiss"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 

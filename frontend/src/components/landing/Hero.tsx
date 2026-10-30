@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowRight, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowRight, BrainCircuit, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { GoogleIcon } from '../common/GoogleIcon';
 
 export const Hero = () => {
@@ -22,7 +22,7 @@ export const Hero = () => {
           </h1>
 
           {/* Subheadline */}
-          <p className="text-base sm:text-lg text-slate-400 max-w-3xl mx-auto mb-8 leading-relaxed">
+          <p className="text-base sm:text-sm text-slate-400 max-w-3xl mx-auto mb-8 leading-relaxed">
            Turn your leads into personalized follow-up emails with AI — ready to review and send.
           </p>
 
@@ -64,8 +64,8 @@ export const Hero = () => {
               Secure Google OAuth
             </span>
             <span className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              No code required
+              <BrainCircuit className="w-3.5 h-3.5 text-amber-400" />
+              AI-Powered Follow-ups
             </span>
           </div>
         </div>

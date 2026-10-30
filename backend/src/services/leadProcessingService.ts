@@ -10,6 +10,7 @@ import type { Lead, SpreadsheetLocation } from "../types/domain.js";
 import { errorMessage } from "../types/errors.js";
 
 const PROCESSING_LEASE_MS = 10 * 60 * 1000;
+const USAGE_CYCLE_MS = 30 * 24 * 60 * 60 * 1000;
 type UserId = string;
 
 export interface ProcessingResult {
@@ -34,14 +35,13 @@ type LeadTrackingRecord = Pick<LeadProcessing, "status">
 
 export class UsageLimitError extends Error {
   constructor() {
-    super("Your monthly AI draft limit has been reached.");
+    super("Your 30-day AI draft limit has been reached.");
     this.name = "UsageLimitError";
   }
 }
 
-function currentUsagePeriod() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+export function usagePeriodResetAt(periodStart: Date): Date {
+  return new Date(periodStart.getTime() + USAGE_CYCLE_MS);
 }
 
 function leadFingerprint(lead: Lead): string {
@@ -50,37 +50,50 @@ function leadFingerprint(lead: Lead): string {
   ])).digest("hex");
 }
 
-async function resetUsagePeriod(userId: UserId): Promise<void> {
-  const periodStart = currentUsagePeriod();
-  await prisma.user.updateMany({
-    where: { id: userId, usagePeriodStart: { lt: periodStart } },
-    data: { draftsUsed: 0, draftsReserved: 0, usagePeriodStart: periodStart },
-  });
+export async function refreshUsageCycle(userId: UserId) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error("Authenticated user no longer exists.");
+    const resetAt = usagePeriodResetAt(user.usagePeriodStart);
+    if (new Date() < resetAt) return { ...user, usagePeriodResetAt: resetAt };
+    const advanced = await prisma.user.updateMany({
+      where: { id: userId, usagePeriodStart: user.usagePeriodStart },
+      data: { draftsUsed: 0, draftsReserved: 0, usagePeriodStart: resetAt },
+    });
+    if (advanced.count === 1) continue;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("Authenticated user no longer exists.");
+  const resetAt = usagePeriodResetAt(user.usagePeriodStart);
+  if (new Date() >= resetAt) return refreshUsageCycle(userId);
+  return { ...user, usagePeriodResetAt: resetAt };
 }
 
-export async function reserveDraftUsage(userId: UserId): Promise<void> {
-  await resetUsagePeriod(userId);
+export async function reserveDraftUsage(userId: UserId): Promise<Date> {
+  const user = await refreshUsageCycle(userId);
   const updated = await prisma.$executeRaw`
     UPDATE "User"
     SET "draftsReserved" = "draftsReserved" + 1,
         "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${userId}
       AND "draftsUsed" + "draftsReserved" < "draftLimit"
+      AND "usagePeriodStart" = ${user.usagePeriodStart}
   `;
   if (updated === 0) throw new UsageLimitError();
+  return user.usagePeriodStart;
 }
 
-async function commitDraftUsage(userId: UserId): Promise<void> {
+async function commitDraftUsage(userId: UserId, periodStart: Date): Promise<void> {
   const updated = await prisma.user.updateMany({
-    where: { id: userId, draftsReserved: { gt: 0 } },
+    where: { id: userId, usagePeriodStart: periodStart, draftsReserved: { gt: 0 } },
     data: { draftsReserved: { decrement: 1 }, draftsUsed: { increment: 1 } },
   });
   if (updated.count === 0) throw new Error("Unable to record completed draft usage.");
 }
 
-async function releaseDraftUsage(userId: UserId): Promise<void> {
+async function releaseDraftUsage(userId: UserId, periodStart: Date): Promise<void> {
   await prisma.user.updateMany({
-    where: { id: userId, draftsReserved: { gt: 0 } },
+    where: { id: userId, usagePeriodStart: periodStart, draftsReserved: { gt: 0 } },
     data: { draftsReserved: { decrement: 1 } },
   });
 }
@@ -216,15 +229,15 @@ export function mergeLeadTracking(
   record: LeadTrackingRecord | null | undefined,
 ): Lead {
   if (!record) return lead;
-  const trackingStatuses: Record<LeadProcessing["status"], string> = {
+  const trackingStatuses: Record<NonNullable<LeadProcessing["status"]>, string> = {
     [PROCESSING_STATUS.DRAFT_CREATED]: "Draft Created",
     [PROCESSING_STATUS.SENT]: "Sent",
     [PROCESSING_STATUS.FAILED]: "Failed",
     [PROCESSING_STATUS.PROCESSING]: "New",
   };
-  const trackingStatus = {
+  const trackingStatus = record.status ? ({
     ...trackingStatuses,
-  }[record.status] || "New";
+  }[record.status] || "New") : "New";
 
   return {
     ...lead,
@@ -257,12 +270,13 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
   }
 
   let usageReserved = false;
+  let reservedPeriodStart: Date | null = null;
   let createdDraftId: string | null = null;
   let createdMessageId: string | null = null;
   let createdThreadId: string | null = null;
   let failureStage = "quota reservation";
   try {
-    await reserveDraftUsage(userId);
+    reservedPeriodStart = await reserveDraftUsage(userId);
     usageReserved = true;
     failureStage = "Gemini";
     const email = await generateEmail(lead);
@@ -283,7 +297,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
         gmailThreadId: createdThreadId,
       },
     });
-    await commitDraftUsage(userId);
+    await commitDraftUsage(userId, reservedPeriodStart);
     usageReserved = false;
     try {
       await updateLeadStatus(userId, lead, "Draft Created", draft.id, createdMessageId || "", createdThreadId || "");
@@ -304,7 +318,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
       console.error(`Gmail draft ${createdDraftId} exists for lead ${leadLabel(lead)}, but recording its processing state failed: ${errorMessage(error)}`);
       if (usageReserved) {
         try {
-          await commitDraftUsage(userId);
+          await commitDraftUsage(userId, reservedPeriodStart!);
         } catch (usageError) {
           console.error(`Could not commit quota for successfully created Gmail draft ${createdDraftId}: ${errorMessage(usageError)}`);
         }
@@ -325,7 +339,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
     let reservationReleaseError: unknown;
     if (usageReserved) {
       try {
-        await releaseDraftUsage(userId);
+        await releaseDraftUsage(userId, reservedPeriodStart!);
       } catch (releaseError) {
         reservationReleaseError = releaseError;
         console.error(`Could not release reserved draft quota for lead ${leadLabel(lead)}: ${errorMessage(releaseError)}`);
@@ -386,7 +400,7 @@ export async function processLeadsIndependently(
 }
 
 export async function processUserLeads(userId: UserId, spreadsheet: SpreadsheetLocation) {
-  await resetUsagePeriod(userId);
+  await refreshUsageCycle(userId);
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!user) throw new Error("Authenticated user no longer exists.");
 
@@ -407,13 +421,13 @@ export async function processUserLeads(userId: UserId, spreadsheet: SpreadsheetL
   let limitReached = false;
 
   for (const result of details) {
-    if (result.action === "failed" && result.reason === "Your monthly AI draft limit has been reached.") limitReached = true;
+    if (result.action === "failed" && result.reason === "Your 30-day AI draft limit has been reached.") limitReached = true;
   }
 
   const summary = summarizeProcessingResults(details);
   const updatedUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { draftsUsed: true, draftLimit: true },
+    select: { draftsUsed: true, draftLimit: true, usagePeriodStart: true },
   });
   if (!updatedUser) throw new Error("Authenticated user no longer exists.");
   console.info(`Lead processing complete: ${summary.processed} evaluated, ${summary.created} created, ${summary.skipped} skipped, ${summary.failed} failed.`);
@@ -424,6 +438,8 @@ export async function processUserLeads(userId: UserId, spreadsheet: SpreadsheetL
     limitReached,
     draftsUsed: updatedUser.draftsUsed,
     draftLimit: updatedUser.draftLimit,
+    usagePeriodStart: updatedUser.usagePeriodStart,
+    usagePeriodResetAt: usagePeriodResetAt(updatedUser.usagePeriodStart),
   };
 }
 

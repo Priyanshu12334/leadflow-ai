@@ -6,6 +6,7 @@ export interface User {
   draftsUsed: number;
   draftLimit: number;
   usagePeriodStart: string;
+  usagePeriodResetAt: string;
   googleConnected: boolean;
   spreadsheetId: string | null;
   sheetName: string;
@@ -33,7 +34,17 @@ export interface LeadProcessingResult {
   limitReached?: boolean;
   draftsUsed?: number;
   draftLimit?: number;
+  usagePeriodStart?: string;
+  usagePeriodResetAt?: string;
   details?: LeadProcessingDetail[];
+}
+
+export interface FollowUpLead {
+  rowNumber: number;
+  name: string;
+  email: string;
+  company: string;
+  nextFollowUpDate: string | null;
 }
 
 export interface ApiError {

@@ -25,7 +25,7 @@ async function startServer() {
   app.use(notFound);
   app.use(errorHandler);
 
-  app.listen(config.port, () => {
+  app.listen(config.port, "0.0.0.0", () => {
     console.log(`AI Lead Follow-Up API listening on port ${config.port}.`);
   });
 }

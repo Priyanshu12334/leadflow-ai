@@ -16,6 +16,7 @@ export interface Lead {
   spreadsheetId: string;
   sheetName: string;
   validationErrors: string[];
+  sheetData?: Array<{ column: string; value: string }>;
 }
 
 export interface SpreadsheetLocation {

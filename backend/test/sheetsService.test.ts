@@ -18,6 +18,22 @@ test("parses named lead columns and finds the Status column", () => {
   assert.deepEqual(leads[0].validationErrors, []);
 });
 
+test("retains non-empty lead-specific sheet fields for email personalization without email or tracking IDs", () => {
+  const leads = parseLeads([
+    ["Name", "Email", "Company", "Product Interest", "Lead Source", "Status", "Notes", "Gmail Draft ID"],
+    ["Maya Chen", "maya@example.test", "Northstar Robotics", "Inventory analytics", "Industry webinar", "New", "Comparing reporting options", "draft-internal"],
+  ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
+
+  assert.deepEqual(leads[0].sheetData, [
+    { column: "Name", value: "Maya Chen" },
+    { column: "Company", value: "Northstar Robotics" },
+    { column: "Product Interest", value: "Inventory analytics" },
+    { column: "Lead Source", value: "Industry webinar" },
+    { column: "Status", value: "New" },
+    { column: "Notes", value: "Comparing reporting options" },
+  ]);
+});
+
 test("resolves the configured tab to Google's numeric gid and handles missing tabs", () => {
   const metadata = [
     { properties: { sheetId: 0, title: "Sheet1" } },

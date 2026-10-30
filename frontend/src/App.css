@@ -47,7 +47,7 @@
 [data-app-theme="light"] [class~="text-slate-400"],
 [data-app-theme="light"] [class~="text-slate-500"],
 [data-app-theme="light"] [class~="text-slate-600"] {
-  color: #667085;
+  color: #475467;
 }
 
 [data-app-theme="light"] input[class] {
@@ -57,7 +57,7 @@
 }
 
 [data-app-theme="light"] input[class]::placeholder {
-  color: #667085;
+  color: #475467;
 }
 
 [data-app-theme="light"] input[class]:focus {
@@ -69,9 +69,9 @@
 }
 
 [data-app-surface="dashboard"][data-app-theme="light"] .dashboard-secondary-email {
-  color: #667085;
+  color: #475467;
 }
 
 [data-app-theme="light"] .landing-secondary-text {
-  color: #667085;
+  color: #475467;
 }

@@ -12,6 +12,10 @@ const HEADER_ALIASES = {
     messageId: ["gmail message id", "message id", "messageid"],
     threadId: ["gmail thread id", "thread id", "threadid"],
 };
+const AI_EXCLUDED_HEADERS = new Set([
+    "email", "email address", "email id", "draft id", "draftid", "gmail draft id", "gmail draftid",
+    "gmail message id", "message id", "messageid", "gmail thread id", "thread id", "threadid",
+]);
 export class SpreadsheetValidationError extends Error {
     constructor(message) {
         super(message);
@@ -105,6 +109,14 @@ export function parseLeads(rows, { spreadsheetId, sheetName }) {
     }
     return rows.slice(1).map((row, index) => {
         const value = (field) => indexes[field] === -1 ? "" : String(row[indexes[field]] || "").trim();
+        const sheetData = rows[0].flatMap((header, columnIndex) => {
+            const column = String(header ?? "").trim();
+            const cell = row[columnIndex];
+            const cellValue = cell === null || cell === undefined ? "" : String(cell).trim();
+            if (!column || !cellValue || AI_EXCLUDED_HEADERS.has(normalizeHeader(column)))
+                return [];
+            return [{ column, value: cellValue }];
+        });
         const lead = {
             rowNumber: index + 2,
             name: value("name"),
@@ -122,6 +134,7 @@ export function parseLeads(rows, { spreadsheetId, sheetName }) {
             threadIdColumn: indexes.threadId === -1 ? null : columnLetter(indexes.threadId),
             spreadsheetId,
             sheetName,
+            sheetData,
         };
         const validationErrors = ["name", "email", "company"]
             .filter((field) => !lead[field])

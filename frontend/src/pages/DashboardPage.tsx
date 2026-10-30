@@ -7,8 +7,14 @@ import { ProcessLeadsCard } from '../components/dashboard/ProcessLeadsCard';
 import { ProcessingResultsPanel } from '../components/dashboard/ProcessingResultsPanel';
 import type { LeadProcessingResult } from '../types';
 import { OAuthFeedback } from '../components/common/OAuthFeedback';
+import { FollowUpSummary } from '../components/dashboard/FollowUpSummary';
 
-export const DashboardPage = () => {
+interface DashboardPageProps {
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+}
+
+export const DashboardPage = ({ theme, onToggleTheme }: DashboardPageProps) => {
   const [lastResults, setLastResults] = useState<LeadProcessingResult | null>(null);
 
   return (
@@ -16,7 +22,7 @@ export const DashboardPage = () => {
       <OAuthFeedback />
       {/* Page Header */}
       <div className="mb-6">
-        <DashboardHeader />
+        <DashboardHeader theme={theme} onToggleTheme={onToggleTheme} />
       </div>
 
       {/* Status row: Google connection + Draft quota */}
@@ -30,9 +36,15 @@ export const DashboardPage = () => {
         <SpreadsheetConfigCard />
       </div>
 
+      <div className="mb-4">
+        <FollowUpSummary />
+      </div>
+
       {/* Process leads */}
       <div className="mb-4">
-        <ProcessLeadsCard onProcessingComplete={(results) => setLastResults(results)} />
+        <div id="process-leads">
+          <ProcessLeadsCard onProcessingComplete={(results) => setLastResults(results)} />
+        </div>
       </div>
 
       {/* Results panel (shown after a processing run) */}

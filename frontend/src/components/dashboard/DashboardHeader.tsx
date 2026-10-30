@@ -1,51 +1,45 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { RefreshCw } from 'lucide-react';
+import { Moon, RefreshCw, Sun } from 'lucide-react';
+import { useFollowUps } from '../../hooks/useFollowUps';
 
-export const DashboardHeader = () => {
+interface DashboardHeaderProps {
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+}
+
+export const DashboardHeader = ({ theme, onToggleTheme }: DashboardHeaderProps) => {
   const { user, refreshUser } = useAuth();
+  const { refresh: refreshLeads } = useFollowUps();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await refreshUser();
+      await Promise.all([refreshUser(), refreshLeads()]);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const initials = user?.name
-    ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : user?.email?.charAt(0).toUpperCase() || 'U';
-
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      {/* User Info */}
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="w-10 h-10 bg-indigo-600 rounded-full ring-2 ring-indigo-500/20 flex items-center justify-center text-white text-sm font-semibold shrink-0 shadow-sm shadow-indigo-950/30">
-          {initials}
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-base font-bold text-slate-100 truncate">
-            {user?.name || user?.email?.split('@')[0] || 'User'}
-          </h1>
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-xs text-slate-500 truncate">
-              {user?.email}
-            </p>
-            {user?.plan && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide bg-indigo-500/8 text-indigo-300 border border-indigo-400/20">
-                {user.plan} Plan
-              </span>
-            )}
-          </div>
-        </div>
+      <div>
+        <h1 className="text-lg font-semibold text-slate-100">{user?.name?.trim() ? `Welcome back, ${user.name.trim()}!` : 'Welcome back!'}</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Your account and lead activity at a glance.</p>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={onToggleTheme}
+          className="hidden h-9 w-9 items-center justify-center rounded-md border border-[#2a2d3a] bg-[#1a1d27] text-slate-300 transition-colors hover:bg-[#1e2130] hover:text-slate-100 xl:flex"
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
         <button
           onClick={handleRefresh}
           disabled={refreshing}

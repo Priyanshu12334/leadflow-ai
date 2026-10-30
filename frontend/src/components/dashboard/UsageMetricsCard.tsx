@@ -1,22 +1,14 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ProgressBar } from '../common/ProgressBar';
-import { Zap, Calendar, AlertCircle } from 'lucide-react';
+import { Zap, AlertCircle } from 'lucide-react';
 
 export const UsageMetricsCard = () => {
   const { user } = useAuth();
   const draftsUsed = user?.draftsUsed ?? 0;
   const draftLimit = user?.draftLimit ?? 20;
-  const remaining = Math.max(0, draftLimit - draftsUsed);
+  const remaining = Math.max(0, 20 - draftsUsed);
   const percentage = Math.min(Math.round((draftsUsed / draftLimit) * 100), 100);
-
-  const formattedDate = user?.usagePeriodStart
-    ? new Date(user.usagePeriodStart).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : 'Current cycle';
 
   return (
     <div className="bg-[#1a1d27] border border-[#2a2d3a] rounded-lg p-5">
@@ -28,7 +20,7 @@ export const UsageMetricsCard = () => {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-200">Draft Quota</p>
-            <p className="text-xs text-slate-500">Monthly usage</p>
+            <p className="text-xs text-slate-500">30-day usage</p>
           </div>
         </div>
 
@@ -47,15 +39,9 @@ export const UsageMetricsCard = () => {
             <span className="text-2xl font-bold text-slate-100">{draftsUsed}</span>
             <span className="text-sm text-slate-500">/ {draftLimit} drafts</span>
           </div>
-          <span className="text-sm font-medium text-slate-400">{remaining} left</span>
         </div>
         <ProgressBar used={draftsUsed} total={draftLimit} showLabel={false} />
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-600">
-        <Calendar className="w-3.5 h-3.5" />
-        <span>Resets from: <span className="text-slate-400 font-medium">{formattedDate}</span></span>
+        <p className="mt-2 text-sm text-slate-400">{remaining} drafts remaining in this cycle</p>
       </div>
     </div>
   );
