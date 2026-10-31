@@ -9,7 +9,7 @@ import { exchangeCodeForGoogleAccount, getGoogleAuthorizationUrl } from "../serv
 
 const COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
+  sameSite: config.cookieSecure ? "none" : "lax",
   secure: config.cookieSecure,
   // The callback is nested under /api/auth/google, while authenticated APIs
   // live under /api/users and /api/leads. Scope both cookies to the whole site.
