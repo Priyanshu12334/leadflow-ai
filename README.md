@@ -58,7 +58,7 @@ The sheet header must include `Name`, `Email` and `Company`. Optional `Status`, 
 
 Use HTTPS origins and redirect URIs that exactly match the deployed application, set `NODE_ENV=production`, `FRONTEND_ORIGIN`, `CLIENT_SUCCESS_URL`, `GOOGLE_REDIRECT_URI`, and the frontend API URL for that deployment. Configure the OAuth consent screen with the production app name, support email, authorized domains, privacy policy and terms URL. Publish the consent screen and complete Google's verification for the Gmail/Sheets scopes before general availability; Google may require additional review based on the scopes and account type. Keep OAuth client secrets, Gemini keys, `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` in a managed secret store. Back up the encryption key securely: stored refresh tokens cannot be decrypted if that key is lost or changed without re-encrypting the data.
 
-For production database deployments, run `npx prisma migrate deploy` as a release step. For local schema development, use `npm run prisma:migrate` to create and apply a migration.
+Production backend startup runs `prisma migrate deploy` before the API starts, applying any pending checked-in migrations without resetting the database. This includes the Docker image used by Render. Configure Render with the backend Dockerfile (or, for a native Node service, set its pre-deploy/release command to `npm run prisma:migrate:deploy`). Keep `DATABASE_URL` pointed at the intended production database and schema. For local schema development, use `npm run prisma:migrate` to create and apply a migration.
 
 ### Tests
 

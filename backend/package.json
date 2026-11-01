@@ -6,12 +6,13 @@
   "main": "dist/src/index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/src/index.js",
+    "start": "npm run prisma:migrate:deploy && node dist/src/index.js",
     "build": "tsc",
     "test": "npm run build && node --test dist/test/*.test.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",

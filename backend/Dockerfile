@@ -23,4 +23,4 @@ COPY --from=build --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 
 USER node
 EXPOSE 5000
-CMD ["node", "dist/src/index.js"]
+CMD ["npm", "start"]
