@@ -9,7 +9,11 @@ export const Footer = () => {
   const navigate = useNavigate();
 
   const handleBrand = () => {
-    isAuthenticated ? navigate('/dashboard') : navigate('/');
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    } else {
+      navigate('/');
+    }
   };
 
   return (
@@ -30,9 +34,9 @@ export const Footer = () => {
           <div>
             <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-3">Product</h4>
             <ul className="space-y-2">
-              <li><a href="#features" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Features</a></li>
-              <li><a href="#how-it-works" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">How It Works</a></li>
-              <li><a href="#pricing" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Pricing</a></li>
+              <li><Link to="/#features" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Features</Link></li>
+              <li><Link to="/#how-it-works" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">How It Works</Link></li>
+              <li><Link to="/#pricing" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Pricing</Link></li>
             </ul>
           </div>
 

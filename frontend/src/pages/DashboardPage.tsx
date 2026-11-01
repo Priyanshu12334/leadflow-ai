@@ -3,10 +3,10 @@ import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { UsageMetricsCard } from '../components/dashboard/UsageMetricsCard';
 import { GoogleStatusCard } from '../components/dashboard/GoogleStatusCard';
 import { SpreadsheetConfigCard } from '../components/dashboard/SpreadsheetConfigCard';
+import { ProcessLeadsCard } from '../components/dashboard/ProcessLeadsCard';
 import { ProcessingResultsPanel } from '../components/dashboard/ProcessingResultsPanel';
 import type { LeadProcessingResult } from '../types';
 import { OAuthFeedback } from '../components/common/OAuthFeedback';
-import { FollowUpSummary } from '../components/dashboard/FollowUpSummary';
 
 interface DashboardPageProps {
   theme: 'dark' | 'light';
@@ -35,8 +35,11 @@ export const DashboardPage = ({ theme, onToggleTheme }: DashboardPageProps) => {
         <SpreadsheetConfigCard />
       </div>
 
+      {/* Process leads */}
       <div className="mb-4">
-        <FollowUpSummary />
+        <div id="process-leads">
+          <ProcessLeadsCard onProcessingComplete={(results) => setLastResults(results)} />
+        </div>
       </div>
 
       {/* Results panel (shown after a processing run) */}

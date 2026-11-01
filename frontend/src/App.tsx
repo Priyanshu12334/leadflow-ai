@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { PublicOnlyRoute } from './components/common/PublicOnlyRoute';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
+import { RouteScrollManager } from './components/common/RouteScrollManager';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FollowUpsPage } from './pages/FollowUpsPage';
@@ -88,6 +89,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <RouteScrollManager />
       <AuthProvider>
         <FollowUpsProvider>
         <Routes>

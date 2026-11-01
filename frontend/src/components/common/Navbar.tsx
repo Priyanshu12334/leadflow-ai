@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Menu, Moon, Sun, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { LeadFlowBrand } from './LeadFlowBrand';
@@ -11,9 +11,9 @@ interface NavbarProps {
 }
 
 const publicLinks = [
-  { href: '#features', label: 'Features' },
-  { href: '#how-it-works', label: 'How It Works' },
-  { href: '#pricing', label: 'Pricing' },
+  { to: '/#features', label: 'Features' },
+  { to: '/#how-it-works', label: 'How It Works' },
+  { to: '/#pricing', label: 'Pricing' },
 ];
 
 export const Navbar = ({ theme = 'dark', onToggleTheme }: NavbarProps) => {
@@ -27,7 +27,7 @@ export const Navbar = ({ theme = 'dark', onToggleTheme }: NavbarProps) => {
       <div className="flex h-14 items-center justify-between">
         <button onClick={() => navigate('/')} className="flex cursor-pointer items-center gap-2 focus:outline-none" aria-label="LeadFlow home"><LeadFlowBrand /></button>
         <nav aria-label="Main navigation" className="hidden items-center gap-6 md:flex">
-          {publicLinks.map((link) => <a key={link.href} href={link.href} className="cursor-pointer text-sm text-slate-400 transition-colors hover:text-slate-100">{link.label}</a>)}
+          {publicLinks.map((link) => <Link key={link.to} to={link.to} className="cursor-pointer text-sm text-slate-400 transition-colors hover:text-slate-100">{link.label}</Link>)}
         </nav>
         <div className="hidden items-center gap-3 md:flex">
           {onToggleTheme && <button onClick={onToggleTheme} className="flex items-center justify-center rounded-md border border-[#2a2d3a] p-1.5 text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100" aria-label={toggleLabel} title={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>}
@@ -40,7 +40,7 @@ export const Navbar = ({ theme = 'dark', onToggleTheme }: NavbarProps) => {
     </div>
     {mobileOpen && <div id="public-mobile-menu" className="border-t border-[#2a2d3a] bg-[#13151f] px-4 py-3 shadow-lg md:hidden">
       <nav aria-label="Mobile navigation" className="space-y-1">
-        {publicLinks.map((link) => <a key={link.href} href={link.href} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100">{link.label}</a>)}
+        {publicLinks.map((link) => <Link key={link.to} to={link.to} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100">{link.label}</Link>)}
       </nav>
       <div className="mt-3 flex flex-col gap-2 border-t border-[#2a2d3a] pt-3">
         {onToggleTheme && <button onClick={onToggleTheme} className="flex min-h-11 items-center gap-3 rounded-lg border border-[#2a2d3a] px-3 text-sm font-medium text-slate-300 transition-colors hover:bg-[#1e2130]" aria-label={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}Switch to {theme === 'dark' ? 'Light' : 'Dark'} mode</button>}

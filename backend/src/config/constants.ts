@@ -6,7 +6,6 @@ export const GOOGLE_SCOPES = [
   "profile",
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/gmail.compose",
-  "https://www.googleapis.com/auth/gmail.metadata",
 ] as const;
 
 export const PLAN_LIMITS = {
