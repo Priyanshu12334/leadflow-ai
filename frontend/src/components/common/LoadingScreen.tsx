@@ -6,9 +6,7 @@ export const LoadingScreen = () => (
     <div className="loading-screen__glow loading-screen__glow--violet" aria-hidden="true" />
 
     <div className="loading-screen__content">
-      <div className="loading-screen__logo-frame">
-        <img className="loading-screen__logo" src="/leadflow-icon.svg" alt="LeadFlow" />
-      </div>
+      <img className="loading-screen__logo" src="/leadflow-icon.svg" alt="LeadFlow" />
 
       <h1 className="loading-screen__brand">LeadFlow</h1>
       <p className="loading-screen__tagline">Turn Leads Into Conversations</p>
