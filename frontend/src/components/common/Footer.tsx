@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { LeadFlowBrand } from './LeadFlowBrand';
@@ -40,8 +40,8 @@ export const Footer = () => {
           <div>
             <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-3">Legal</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Privacy Policy</a></li>
-              <li><a href="#" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Terms of Service</a></li>
+              <li><Link to="/privacy-policy" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="text-sm text-slate-500 hover:text-slate-200 transition-colors cursor-pointer">Terms of Service</Link></li>
             </ul>
           </div>
 

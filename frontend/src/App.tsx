@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Menu, Moon, Sun } from 'lucide-react';
 import { AuthProvider } from './context/AuthContext';
 import { FollowUpsProvider } from './context/FollowUpsContext';
@@ -12,6 +12,9 @@ import { DashboardPage } from './pages/DashboardPage';
 import { FollowUpsPage } from './pages/FollowUpsPage';
 import { ContactPage } from './pages/ContactPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { AppSidebar } from './components/common/AppSidebar';
 import { LeadFlowBrand } from './components/common/LeadFlowBrand';
 import './App.css';
@@ -88,6 +91,24 @@ export default function App() {
       <AuthProvider>
         <FollowUpsProvider>
         <Routes>
+          <Route
+            path="/terms"
+            element={
+              <LandingLayout theme={theme} onToggleTheme={toggleTheme}>
+                <TermsPage />
+              </LandingLayout>
+            }
+          />
+
+          <Route
+            path="/privacy-policy"
+            element={
+              <LandingLayout theme={theme} onToggleTheme={toggleTheme}>
+                <PrivacyPolicyPage />
+              </LandingLayout>
+            }
+          />
+
           {/* Public Landing Page Route (Redirects to /dashboard if already authenticated) */}
           <Route
             path="/"
@@ -145,8 +166,14 @@ export default function App() {
             }
           />
 
-          {/* Fallback Catch-All Route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="*"
+            element={
+              <LandingLayout theme={theme} onToggleTheme={toggleTheme}>
+                <NotFoundPage />
+              </LandingLayout>
+            }
+          />
         </Routes>
         </FollowUpsProvider>
       </AuthProvider>
