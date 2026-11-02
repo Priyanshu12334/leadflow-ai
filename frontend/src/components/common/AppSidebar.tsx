@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutDashboard, Mail, Settings, X } from 'lucide-react';
+import { LayoutDashboard, Mail, Settings, Users, X } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LeadFlowBrand } from './LeadFlowBrand';
@@ -10,7 +10,7 @@ interface AppSidebarProps {
 
 const navigation = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/follow-ups', label: 'Follow-ups', icon: CalendarDays, end: false },
+  { to: '/leads', label: 'Leads', icon: Users, end: false },
   { to: '/contact', label: 'Contact', icon: Mail, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ];
@@ -35,7 +35,7 @@ export const AppSidebar = ({ mobileOpen, onCloseMobile }: AppSidebarProps) => {
       </div>
 
       <nav aria-label="Primary navigation" className="mt-9 space-y-1.5">
-        {navigation.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); onCloseMobile(); }} className={({ isActive }) => `flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors outline-none shadow-none focus-visible:ring-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-slate-500 ${isActive ? activeClass : inactiveClass}`}>
+        {navigation.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} onClick={(event) => { if (event.detail > 0) event.currentTarget.blur(); onCloseMobile(); }} className={({ isActive }) => `flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors outline-none shadow-none focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500 focus-visible:ring-0 focus-visible:shadow-none ${isActive ? activeClass : inactiveClass}`}>
           <Icon className="h-[18px] w-[18px] shrink-0" />
           <span>{label}</span>
         </NavLink>)}

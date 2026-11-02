@@ -18,6 +18,55 @@ test("parses named lead columns and finds the Status column", () => {
   assert.deepEqual(leads[0].validationErrors, []);
 });
 
+test("imports a Name, Email, Company sheet with no validation errors", () => {
+  const [lead] = parseLeads([
+    ["Name", "Email", "Company"],
+    ["Avery Chen", "avery@example.com", "Northstar Labs"],
+  ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
+
+  assert.equal(lead.name, "Avery Chen");
+  assert.equal(lead.email, "avery@example.com");
+  assert.equal(lead.company, "Northstar Labs");
+  assert.deepEqual(lead.validationErrors, []);
+});
+
+test("imports a Name, Email, Requirement sheet and maps Requirement to context", () => {
+  const [lead] = parseLeads([
+    ["Name", "Email", "Requirement"],
+    ["Jordan Lee", "jordan@example.com", "Needs pricing for the analytics plan"],
+  ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet2" });
+
+  assert.equal(lead.name, "Jordan Lee");
+  assert.equal(lead.email, "jordan@example.com");
+  assert.equal(lead.company, "");
+  assert.equal(lead.context, "Needs pricing for the analytics plan");
+  assert.deepEqual(lead.validationErrors, []);
+  assert.deepEqual(lead.sheetData, [
+    { column: "Name", value: "Jordan Lee" },
+    { column: "Requirement", value: "Needs pricing for the analytics plan" },
+  ]);
+});
+
+test("maps common header variations case-insensitively and retains optional and unknown fields", () => {
+  const [lead] = parseLeads([
+    ["FULL NAME", "E-mail", "Company Name", "Phone", "Website", "Custom Field"],
+    ["Casey Park", "casey@example.com", "Example Org", "555-0100", "https://example.org", "Keep this value"],
+  ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
+
+  assert.equal(lead.name, "Casey Park");
+  assert.equal(lead.email, "casey@example.com");
+  assert.equal(lead.company, "Example Org");
+  assert.equal(lead.website, "https://example.org");
+  assert.deepEqual(lead.validationErrors, []);
+  assert.deepEqual(lead.sheetData, [
+    { column: "FULL NAME", value: "Casey Park" },
+    { column: "Company Name", value: "Example Org" },
+    { column: "Phone", value: "555-0100" },
+    { column: "Website", value: "https://example.org" },
+    { column: "Custom Field", value: "Keep this value" },
+  ]);
+});
+
 test("retains non-empty lead-specific sheet fields for email personalization without email or tracking IDs", () => {
   const leads = parseLeads([
     ["Name", "Email", "Company", "Product Interest", "Lead Source", "Status", "Notes", "Gmail Draft ID"],
@@ -118,15 +167,15 @@ test("does not call Sheets when no status or metadata columns are mapped", async
   await assert.doesNotReject(updateLeadStatus("user-id", lead, "Draft Created", "draft-1", "message-1", "thread-1"));
 });
 
-test("flags incomplete leads and rejects sheets without required headers", () => {
+test("flags missing required row values and reports missing required headers clearly", () => {
   const leads = parseLeads([
     ["Name", "Email", "Company", "Status"],
     ["", "not-an-email", "", "New"],
   ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
-  assert.deepEqual(leads[0].validationErrors, ["missing name", "missing company", "invalid email"]);
+  assert.deepEqual(leads[0].validationErrors, ["missing name", "invalid email"]);
 
   assert.throws(
-    () => parseLeads([["Name", "Email", "Status"]], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" }),
-    SpreadsheetValidationError,
+    () => parseLeads([["Name", "Status"]], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" }),
+    (error: unknown) => error instanceof SpreadsheetValidationError && /Email/.test(error.message),
   );
 });

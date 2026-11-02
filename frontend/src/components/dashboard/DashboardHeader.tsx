@@ -26,12 +26,12 @@ export const DashboardHeader = ({ theme, onToggleTheme }: DashboardHeaderProps) 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 className="text-lg font-semibold text-slate-100">{user?.name?.trim() ? `Welcome back, ${user.name.trim()}!` : 'Welcome back!'}</h1>
+        <h1 className="text-2xl font-semibold text-slate-100">{user?.name?.trim() ? ` ${user.name.trim()}` : 'Welcome back!'}</h1>
         <p className="mt-0.5 text-xs text-slate-500">Your account and lead activity at a glance.</p>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-start gap-2 sm:justify-end">
         <button
           onClick={onToggleTheme}
           className="hidden h-9 w-9 items-center justify-center rounded-md border border-[#2a2d3a] bg-[#1a1d27] text-slate-300 transition-colors hover:bg-[#1e2130] hover:text-slate-100 xl:flex"
@@ -43,7 +43,7 @@ export const DashboardHeader = ({ theme, onToggleTheme }: DashboardHeaderProps) 
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className={`flex items-center gap-1.5 text-xs font-medium text-slate-300 bg-[#1a1d27] hover:bg-[#1e2130] hover:text-slate-100 border border-[#2a2d3a] rounded-md px-3 py-2 transition-colors ${refreshing ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+          className={`flex w-full items-center justify-center gap-1.5 text-xs font-medium text-slate-300 bg-[#1a1d27] hover:bg-[#1e2130] hover:text-slate-100 border border-[#2a2d3a] rounded-md px-3 py-2 transition-colors sm:w-auto ${refreshing ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
           title="Refresh dashboard and user data"
           aria-label="Refresh dashboard and user data"
         >

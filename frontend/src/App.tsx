@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Menu, Moon, Sun } from 'lucide-react';
 import { AuthProvider } from './context/AuthContext';
 import { FollowUpsProvider } from './context/FollowUpsContext';
@@ -10,7 +10,7 @@ import { Footer } from './components/common/Footer';
 import { RouteScrollManager } from './components/common/RouteScrollManager';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { FollowUpsPage } from './pages/FollowUpsPage';
+import { LeadsPage } from './pages/FollowUpsPage';
 import { ContactPage } from './pages/ContactPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TermsPage } from './pages/TermsPage';
@@ -136,15 +136,17 @@ export default function App() {
           />
 
           <Route
-            path="/follow-ups"
+            path="/leads"
             element={
               <ProtectedRoute>
                 <DashboardLayout theme={theme} onToggleTheme={toggleTheme}>
-                  <FollowUpsPage />
+                  <LeadsPage />
                 </DashboardLayout>
               </ProtectedRoute>
             }
           />
+
+          <Route path="/follow-ups" element={<Navigate to="/leads" replace />} />
 
           <Route
             path="/contact"

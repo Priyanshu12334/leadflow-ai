@@ -1,19 +1,19 @@
 import { google } from "googleapis";
 import { getGoogleClient, GoogleConnectionError, isGoogleTokenError } from "./googleClientService.js";
-const REQUIRED_HEADERS = ["name", "email", "company"];
+const REQUIRED_HEADERS = ["name", "email"];
 const HEADER_ALIASES = {
-    name: ["name", "full name", "contact name"],
-    email: ["email", "email address", "email id"],
-    company: ["company", "company name", "organization"],
+    name: ["name", "full name", "contact name", "fullname"],
+    email: ["email", "e mail", "email address", "email id"],
+    company: ["company", "company name", "organization", "organisation"],
     website: ["website", "web site", "company website", "url"],
-    context: ["message", "context", "message context", "requirement", "notes", "details"],
+    context: ["message", "context", "message context", "requirement", "requirements", "product requirement", "product requirements", "inquiry", "request", "notes", "details"],
     status: ["status"],
     draftId: ["draft id", "draftid", "gmail draft id", "gmail draftid"],
     messageId: ["gmail message id", "message id", "messageid"],
     threadId: ["gmail thread id", "thread id", "threadid"],
 };
 const AI_EXCLUDED_HEADERS = new Set([
-    "email", "email address", "email id", "draft id", "draftid", "gmail draft id", "gmail draftid",
+    "email", "e mail", "email address", "email id", "draft id", "draftid", "gmail draft id", "gmail draftid",
     "gmail message id", "message id", "messageid", "gmail thread id", "thread id", "threadid",
 ]);
 export class SpreadsheetValidationError extends Error {
@@ -105,18 +105,20 @@ export function parseLeads(rows, { spreadsheetId, sheetName }) {
     const indexes = mapSheetColumns(rows[0]);
     const missingHeaders = REQUIRED_HEADERS.filter((field) => indexes[field] === -1);
     if (missingHeaders.length > 0) {
-        throw new SpreadsheetValidationError(`The selected sheet is missing required column(s): ${missingHeaders.join(", ")}.`);
+        const labels = { name: "Name", email: "Email" };
+        throw new SpreadsheetValidationError(`The selected sheet is missing required column(s): ${missingHeaders.map((field) => labels[field]).join(", ")}. Add these headers and try again.`);
     }
     return rows.slice(1).map((row, index) => {
         const value = (field) => indexes[field] === -1 ? "" : String(row[indexes[field]] || "").trim();
-        const sheetData = rows[0].flatMap((header, columnIndex) => {
+        const sheetFields = rows[0].flatMap((header, columnIndex) => {
             const column = String(header ?? "").trim();
             const cell = row[columnIndex];
             const cellValue = cell === null || cell === undefined ? "" : String(cell).trim();
-            if (!column || !cellValue || AI_EXCLUDED_HEADERS.has(normalizeHeader(column)))
+            if (!column || !cellValue)
                 return [];
             return [{ column, value: cellValue }];
         });
+        const sheetData = sheetFields.filter(({ column }) => !AI_EXCLUDED_HEADERS.has(normalizeHeader(column)));
         const lead = {
             rowNumber: index + 2,
             name: value("name"),
@@ -134,9 +136,10 @@ export function parseLeads(rows, { spreadsheetId, sheetName }) {
             threadIdColumn: indexes.threadId === -1 ? null : columnLetter(indexes.threadId),
             spreadsheetId,
             sheetName,
+            sheetFields,
             sheetData,
         };
-        const validationErrors = ["name", "email", "company"]
+        const validationErrors = ["name", "email"]
             .filter((field) => !lead[field])
             .map((field) => `missing ${field}`);
         if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email))

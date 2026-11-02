@@ -39,12 +39,13 @@ export interface LeadProcessingResult {
   details?: LeadProcessingDetail[];
 }
 
-export interface FollowUpLead {
+export interface LeadListItem {
   rowNumber: number;
   name: string;
   email: string;
   company: string;
-  nextFollowUpDate: string | null;
+  context: string;
+  fields: Array<{ column: string; value: string }>;
 }
 
 export interface ApiError {

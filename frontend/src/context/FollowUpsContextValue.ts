@@ -1,15 +1,13 @@
 import { createContext } from 'react';
-import type { FollowUpLead } from '../types';
+import type { LeadListItem } from '../types';
 
 export interface FollowUpsContextValue {
-  leads: FollowUpLead[];
+  leads: LeadListItem[];
   loading: boolean;
   refreshing: boolean;
   error: string;
-  savingRow: number | null;
-  ensureLoaded: (userId: string) => Promise<FollowUpLead[]>;
+  ensureLoaded: (userId: string) => Promise<LeadListItem[]>;
   refresh: () => Promise<void>;
-  updateDate: (lead: FollowUpLead, value: string) => Promise<boolean>;
 }
 
 export const FollowUpsContext = createContext<FollowUpsContextValue | null>(null);

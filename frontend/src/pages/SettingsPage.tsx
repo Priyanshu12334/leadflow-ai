@@ -14,7 +14,7 @@ export const SettingsPage = () => {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <h1 className="text-lg font-semibold text-slate-100">Settings</h1>
+        <h1 className="text-2xl font-semibold text-slate-100">Settings</h1>
         <p className="mt-0.5 text-xs text-slate-500">Your account and usage settings.</p>
       </div>
 
@@ -51,7 +51,7 @@ export const SettingsPage = () => {
             <p className="text-xs text-slate-500">Sign out of LeadFlow on this device.</p>
           </div>
         </div>
-        <button type="button" onClick={() => { void logout(); }} className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-red-500/25 bg-red-500/10 px-4 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/15">
+        <button type="button" onClick={() => { void logout(); }} className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-red-500 px-4 text-sm font-medium text-white transition-colors hover:bg-red-600">
           <LogOut className="h-4 w-4" />
           Log out
         </button>

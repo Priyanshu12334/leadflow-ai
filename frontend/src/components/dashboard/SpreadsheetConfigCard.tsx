@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { userApi } from '../../api/userApi';
 import { FileSpreadsheet, Save, Check, ExternalLink, HelpCircle, AlertCircle, X } from 'lucide-react';
-import type { FormEvent } from 'react';
+import { SiGooglesheets } from 'react-icons/si';
 import type { User } from '../../types';
 import { getErrorMessage } from '../../types';
 
@@ -117,11 +117,11 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 border-[#34A853]/20 rounded-md flex items-center justify-center">
-            <FileSpreadsheet className="w-7 h-7 text-emerald-100" />
+            <SiGooglesheets aria-hidden="true" className="h-7 w-8 text-[#34A853]" />
           </div>
           <div>
             <p className="text-sm font-medium text-slate-200">Google Sheet</p>
-            <p className="text-xs text-slate-500">Select your spreadshe</p>
+            <p className="text-xs text-slate-500">Select your spreadsheet</p>
           </div>
         </div>
 

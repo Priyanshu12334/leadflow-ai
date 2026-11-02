@@ -76,6 +76,13 @@
   animation: loading-text-enter 700ms 100ms ease-out both;
 }
 
+.loading-screen__brand-flow {
+  background: linear-gradient(110deg, #818cf8 5%, #a78bfa 52%, #60a5fa 100%);
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+}
+
 .loading-screen__tagline {
   margin: 0.8rem 0 0;
   color: #9aa8c2;
@@ -110,16 +117,32 @@
 }
 
 .loading-screen__message {
+  display: flex;
+  min-height: 2.6rem;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
   margin: 0.9rem 0 0;
   color: #71809b;
   font-size: 0.78rem;
+  line-height: 1.4;
   letter-spacing: 0.025em;
-  animation: loading-message-breathe 2.4s ease-in-out infinite;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.loading-screen__message.is-visible {
+  opacity: 1;
+}
+
+.loading-screen__message strong {
+  color: #9aa8c2;
+  font-weight: 600;
 }
 
 @keyframes loading-logo-enter {
-  from { opacity: 0; transform: scale(0.92) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.92) translateY(17px); }
+  to { opacity: 1; transform: scale(1) translateY(9px); }
 }
 
 @keyframes loading-text-enter {
@@ -132,11 +155,6 @@
   30% { opacity: 1; transform: translateY(-3px) scale(1); }
 }
 
-@keyframes loading-message-breathe {
-  0%, 100% { opacity: 0.68; }
-  50% { opacity: 1; }
-}
-
 @keyframes loading-ambient-drift {
   from { transform: translate3d(-1%, -1%, 0) scale(0.98); }
   to { transform: translate3d(1%, 1%, 0) scale(1.03); }
@@ -147,8 +165,9 @@
   .loading-screen__logo,
   .loading-screen__brand,
   .loading-screen__tagline,
-  .loading-screen__dot,
-  .loading-screen__message {
+  .loading-screen__dot {
     animation: none;
   }
+
+  .loading-screen__message { transition: none; }
 }

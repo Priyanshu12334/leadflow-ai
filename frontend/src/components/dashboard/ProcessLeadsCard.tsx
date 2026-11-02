@@ -74,7 +74,7 @@ export const ProcessLeadsCard = ({ onProcessingComplete }: ProcessLeadsCardProps
       <div className="mb-5">
         <h2 className="text-sm font-semibold text-slate-200">Process Leads</h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Reads your Google Sheet, generates personalized Gmail drafts with Gemini AI.
+          Reads your Google Sheet and generates personalized Gmail drafts. Only Name and Email columns are required; Company, Requirement, Phone, Website, and other fields are optional.
         </p>
       </div>
 
