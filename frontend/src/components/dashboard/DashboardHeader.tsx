@@ -34,7 +34,7 @@ export const DashboardHeader = ({ theme, onToggleTheme }: DashboardHeaderProps) 
       <div className="flex items-center justify-start gap-2 sm:justify-end">
         <button
           onClick={onToggleTheme}
-          className="hidden h-9 w-9 items-center justify-center rounded-md border border-[#2a2d3a] bg-[#1a1d27] text-slate-300 transition-colors hover:bg-[#1e2130] hover:text-slate-100 xl:flex"
+          className="hidden h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-[#2a2d3a] bg-[#1a1d27] text-slate-300 transition-colors hover:bg-[#1e2130] hover:text-slate-100 xl:flex"
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >

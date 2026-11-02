@@ -28,7 +28,7 @@ export const AppSidebar = ({ mobileOpen, onCloseMobile }: AppSidebarProps) => {
 
   return <>
     {mobileOpen && <button type="button" aria-label="Close navigation menu" className="fixed inset-0 z-40 bg-black/60 xl:hidden" onClick={onCloseMobile} />}
-    <aside id="app-sidebar" aria-label="Application sidebar" className={`fixed inset-y-0 left-auto right-0 z-50 flex w-[min(84vw,18rem)] flex-col border-l border-[#2a2d3a] bg-[#1a1d27] px-4 py-5 transition-transform duration-200 xl:left-0 xl:right-auto xl:w-60 xl:border-l-0 xl:border-r xl:translate-x-0 xl:px-5 ${mobileOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+    <aside id="app-sidebar" aria-label="Application sidebar" className={`app-sidebar fixed inset-y-0 left-auto right-0 z-50 flex w-[min(84vw,18rem)] flex-col border-l border-[#2a2d3a] bg-[#1a1d27] px-4 py-5 transition-transform duration-200 xl:left-0 xl:right-auto xl:w-60 xl:border-l-0 xl:border-r xl:translate-x-0 xl:px-5 ${mobileOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       <div className="flex items-start justify-between">
         <div className="min-w-0 py-1"><LeadFlowBrand size="sidebar" /></div>
         <button type="button" onClick={onCloseMobile} className="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.05] hover:text-slate-100 xl:hidden" aria-label="Close navigation menu"><X className="h-5 w-5" /></button>

@@ -30,7 +30,7 @@ export const Navbar = ({ theme = 'dark', onToggleTheme }: NavbarProps) => {
           {publicLinks.map((link) => <Link key={link.to} to={link.to} className="cursor-pointer text-sm text-slate-400 transition-colors hover:text-slate-100">{link.label}</Link>)}
         </nav>
         <div className="hidden items-center gap-3 md:flex">
-          {onToggleTheme && <button onClick={onToggleTheme} className="flex items-center justify-center rounded-md border border-[#2a2d3a] p-1.5 text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100" aria-label={toggleLabel} title={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>}
+          {onToggleTheme && <button onClick={onToggleTheme} className="flex cursor-pointer items-center justify-center rounded-md border border-[#2a2d3a] p-1.5 text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100" aria-label={toggleLabel} title={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>}
           <button onClick={loginWithGoogle} className="flex cursor-pointer items-center gap-2 rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500"><GoogleIcon />Connect with Google</button>
         </div>
         <button className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-[#1e2130] md:hidden" onClick={() => setMobileOpen((open) => !open)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="public-mobile-menu">
@@ -43,7 +43,7 @@ export const Navbar = ({ theme = 'dark', onToggleTheme }: NavbarProps) => {
         {publicLinks.map((link) => <Link key={link.to} to={link.to} onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-slate-400 transition-colors hover:bg-[#1e2130] hover:text-slate-100">{link.label}</Link>)}
       </nav>
       <div className="mt-3 flex flex-col gap-2 border-t border-[#2a2d3a] pt-3">
-        {onToggleTheme && <button onClick={onToggleTheme} className="flex min-h-11 items-center gap-3 rounded-lg border border-[#2a2d3a] px-3 text-sm font-medium text-slate-300 transition-colors hover:bg-[#1e2130]" aria-label={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}Switch to {theme === 'dark' ? 'Light' : 'Dark'} mode</button>}
+        {onToggleTheme && <button onClick={onToggleTheme} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-[#2a2d3a] px-3 text-sm font-medium text-slate-300 transition-colors hover:bg-[#1e2130]" aria-label={toggleLabel}>{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}Switch to {theme === 'dark' ? 'Light' : 'Dark'} mode</button>}
         <button onClick={() => { loginWithGoogle(); setMobileOpen(false); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white transition-colors hover:bg-indigo-500"><GoogleIcon />Connect with Google</button>
       </div>
     </div>}

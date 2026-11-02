@@ -82,7 +82,7 @@ export const ContactPage = () => {
     }
   };
 
-  return <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+  return <main className="contact-page mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
     <header className="mb-8 sm:mb-10">
       <p className="text-sm uppercase tracking-[0.15em] text-indigo-300">We're here to help</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-100">Let's talk</h1>

@@ -37,7 +37,7 @@ export const LoadingScreen = () => {
         <img className="loading-screen__logo" src="/leadflow-icon.svg" alt="LeadFlow" />
 
         <h1 className="loading-screen__brand">
-          <span>Lead</span><span className="loading-screen__brand-flow">Flow</span>
+          <span>Lead</span><span className="text-indigo-400">Flow</span>
         </h1>
         <p className="loading-screen__tagline">Turn Leads Into Conversations</p>
 
@@ -47,7 +47,7 @@ export const LoadingScreen = () => {
           <span className="loading-screen__dot" />
         </div>
         <p className={`loading-screen__message${messageVisible ? ' is-visible' : ''}`}>
-          {loadingMessages[messageIndex]}
+          <span>{loadingMessages[messageIndex]}</span>
         </p>
       </div>
     </main>
