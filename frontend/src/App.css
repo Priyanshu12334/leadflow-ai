@@ -124,7 +124,7 @@
   background-color: #f2f4f7;
 }
 
-[data-app-theme="light"] .contact-page button[class~="focus-visible:ring-offset-[#1a1d27"]] {
+[data-app-theme="light"] .contact-page button {
   --tw-ring-offset-color: #ffffff;
 }
 
@@ -177,7 +177,7 @@
   color: #475467;
 }
 
-[data-app-surface="dashboard"][data-app-theme="light"] .app-sidebar [class~="focus-visible:ring-offset-[#13151f"]] {
+[data-app-surface="dashboard"][data-app-theme="light"] .app-sidebar a[aria-label="Open Settings"] {
   --tw-ring-offset-color: #ffffff;
 }
 
