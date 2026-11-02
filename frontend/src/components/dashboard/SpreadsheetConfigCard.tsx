@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { userApi } from '../../api/userApi';
 import { FileSpreadsheet, Save, Check, ExternalLink, HelpCircle, AlertCircle, X } from 'lucide-react';
