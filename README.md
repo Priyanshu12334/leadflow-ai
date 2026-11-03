@@ -1,11 +1,10 @@
-# LeadFlow
+# LeadFlow – AI-Powered Lead Follow-Up Platform
 
 LeadFlow is an AI-powered lead follow-up tool that transforms Google Sheets data into personalized Gmail drafts using Google's Gemini AI. It analyzes lead information to generate relevant email subjects and messages, then saves them directly to Gmail Drafts for review and sending.
 
 Each draft stays in Gmail for human review. LeadFlow does not send emails automatically.
 
 **Live Demo:** [Try LeadFlow](https://get-ai-leadflow.vercel.app)  
-**GitHub Repository:** [View Source Code](https://github.com/Priyanshu12334/leadflow-ai)
 
 ## Features
 
