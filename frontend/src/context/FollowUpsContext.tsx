@@ -16,46 +16,50 @@ export const FollowUpsProvider = ({ children }: PropsWithChildren) => {
   const [errorsByUser, setErrorsByUser] = useState<Record<string, string>>({});
   const inFlight = useRef(new Map<string, Promise<LeadListItem[]>>());
 
-  const loadForUser = useCallback((userId: string): Promise<LeadListItem[]> => {
-    const existingRequest = inFlight.current.get(userId);
+  const scopeKey = (requestedUserId: string, spreadsheetId: string | null, sheetName: string) => `${requestedUserId}:${spreadsheetId || ''}:${sheetName}`;
+  const loadForUser = useCallback((userId: string, spreadsheetId: string | null, sheetName: string): Promise<LeadListItem[]> => {
+    const key = scopeKey(userId, spreadsheetId, sheetName);
+    const existingRequest = inFlight.current.get(key);
     if (existingRequest) return existingRequest;
 
-    setLoadingByUser((current) => ({ ...current, [userId]: true }));
-    setErrorsByUser((current) => ({ ...current, [userId]: '' }));
+    setLoadingByUser((current) => ({ ...current, [key]: true }));
+    setErrorsByUser((current) => ({ ...current, [key]: '' }));
     const request = leadApi.listLeads()
       .then((leads) => {
-        setCache((current) => ({ ...current, [userId]: { leads } }));
+        setCache((current) => ({ ...current, [key]: { leads } }));
         return leads;
       })
       .catch((error: unknown) => {
-        setErrorsByUser((current) => ({ ...current, [userId]: getErrorMessage(error) || 'Could not load leads.' }));
+        setErrorsByUser((current) => ({ ...current, [key]: getErrorMessage(error) || 'Could not load leads.' }));
         throw error;
       })
       .finally(() => {
-        inFlight.current.delete(userId);
-        setLoadingByUser((current) => ({ ...current, [userId]: false }));
+        inFlight.current.delete(key);
+        setLoadingByUser((current) => ({ ...current, [key]: false }));
       });
-    inFlight.current.set(userId, request);
+    inFlight.current.set(key, request);
     return request;
   }, []);
 
   const userId = user?.id;
-  const entry = userId ? cache[userId] : undefined;
-  const ensureLoaded = useCallback((requestedUserId: string) => {
-    const existing = cache[requestedUserId];
-    return existing ? Promise.resolve(existing.leads) : loadForUser(requestedUserId);
+  const key = userId ? scopeKey(userId, user?.spreadsheetId ?? null, user?.sheetName ?? '') : '';
+  const entry = key ? cache[key] : undefined;
+  const ensureLoaded = useCallback((requestedUserId: string, spreadsheetId: string | null, sheetName: string) => {
+    const requestedKey = scopeKey(requestedUserId, spreadsheetId, sheetName);
+    const existing = cache[requestedKey];
+    return existing ? Promise.resolve(existing.leads) : loadForUser(requestedUserId, spreadsheetId, sheetName);
   }, [cache, loadForUser]);
 
   const refresh = useCallback(async () => {
     if (!userId) return;
-    try { await loadForUser(userId); } catch { /* Error is exposed through context. */ }
-  }, [loadForUser, userId]);
+    try { await loadForUser(userId, user?.spreadsheetId ?? null, user?.sheetName ?? ''); } catch { /* Error is exposed through context. */ }
+  }, [loadForUser, userId, user?.spreadsheetId, user?.sheetName]);
 
   const value: FollowUpsContextValue = {
     leads: entry?.leads ?? [],
-    loading: Boolean(userId && !entry && loadingByUser[userId] !== false),
-    refreshing: Boolean(userId && loadingByUser[userId]),
-    error: userId ? errorsByUser[userId] ?? '' : '',
+    loading: Boolean(userId && !entry && loadingByUser[key] !== false),
+    refreshing: Boolean(userId && loadingByUser[key]),
+    error: userId ? errorsByUser[key] ?? '' : '',
     ensureLoaded,
     refresh,
   };

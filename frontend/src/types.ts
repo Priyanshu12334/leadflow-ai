@@ -45,6 +45,8 @@ export interface LeadListItem {
   email: string;
   company: string;
   context: string;
+  website?: string;
+  linkedin?: string;
   fields: Array<{ column: string; value: string }>;
 }
 

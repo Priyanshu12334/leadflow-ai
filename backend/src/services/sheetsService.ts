@@ -2,12 +2,12 @@ import { google } from "googleapis";
 import { getGoogleClient, GoogleConnectionError, isGoogleTokenError } from "./googleClientService.js";
 import type { Lead, SpreadsheetLocation } from "../types/domain.js";
 
-const REQUIRED_HEADERS = ["name", "email"] as const;
 const HEADER_ALIASES = {
-  name: ["name", "full name", "contact name", "fullname"],
-  email: ["email", "e mail", "email address", "email id"],
-  company: ["company", "company name", "organization", "organisation"],
+  name: ["name", "full name", "contact name", "fullname", "person", "person name", "student name", "student full name", "first name", "last name", "given name", "surname", "candidate name", "applicant name", "lead name", "customer name", "client name", "employee name", "attendee name", "participant name", "prospect name", "teacher name", "user name", "guest name", "contact person", "candidate", "applicant"],
+  email: ["email", "e mail", "email address", "e mail address", "email id", "mail", "mail id", "contact email", "work email"],
+  company: ["company", "company name", "organization", "organisation", "business"],
   website: ["website", "web site", "company website", "url"],
+  linkedin: ["linkedin", "linkedin profile"],
   context: ["message", "context", "message context", "requirement", "requirements", "product requirement", "product requirements", "inquiry", "request", "notes", "details"],
   status: ["status"],
   draftId: ["draft id", "draftid", "gmail draft id", "gmail draftid"],
@@ -16,9 +16,11 @@ const HEADER_ALIASES = {
 };
 type SheetField = keyof typeof HEADER_ALIASES;
 const AI_EXCLUDED_HEADERS = new Set([
-  "email", "e mail", "email address", "email id", "draft id", "draftid", "gmail draft id", "gmail draftid",
-  "gmail message id", "message id", "messageid", "gmail thread id", "thread id", "threadid",
-]);
+  ...HEADER_ALIASES.email,
+  ...HEADER_ALIASES.draftId,
+  ...HEADER_ALIASES.messageId,
+  ...HEADER_ALIASES.threadId,
+].map(normalizeHeader));
 
 export class SpreadsheetValidationError extends Error {
   constructor(message: string) {
@@ -80,7 +82,7 @@ function quotedSheetName(sheetName: string): string {
 }
 
 function normalizeHeader(value: unknown): string {
-  return String(value || "").trim().toLowerCase().replace(/[\/_-]+/g, " ").replace(/\s+/g, " ");
+  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
 export function mapSheetColumns(headers: unknown[]): Record<SheetField, number> {
@@ -103,21 +105,20 @@ function columnLetter(index: number): string {
 }
 
 export function parseLeads(rows: unknown[][], { spreadsheetId, sheetName }: SpreadsheetLocation): Lead[] {
-  if (rows.length === 0) {
-    throw new SpreadsheetValidationError("The selected sheet is empty. Add a header row before processing leads.");
-  }
+  if (rows.length === 0) return [];
 
-  const indexes = mapSheetColumns(rows[0]);
-  const missingHeaders = REQUIRED_HEADERS.filter((field) => indexes[field] === -1);
-  if (missingHeaders.length > 0) {
-    const labels: Record<(typeof REQUIRED_HEADERS)[number], string> = { name: "Name", email: "Email" };
-    throw new SpreadsheetValidationError(`The selected sheet is missing required column(s): ${missingHeaders.map((field) => labels[field]).join(", ")}. Add these headers and try again.`);
-  }
+  const safeRows = rows.map((row) => Array.isArray(row) ? row : []);
+  const columnCount = safeRows.reduce((maximum, row) => Math.max(maximum, row.length), 0);
+  const headerRow = safeRows[0];
+  const headers = Array.from({ length: columnCount }, (_, index) => {
+    const originalHeader = String(headerRow[index] ?? "");
+    return originalHeader.trim() ? originalHeader : `Column ${columnLetter(index)}`;
+  });
+  const indexes = mapSheetColumns(headerRow);
 
-  return rows.slice(1).map((row, index): Lead => {
+  return safeRows.slice(1).flatMap((row, index): Lead[] => {
     const value = (field: SheetField) => indexes[field] === -1 ? "" : String(row[indexes[field]] || "").trim();
-    const sheetFields = rows[0].flatMap((header, columnIndex) => {
-      const column = String(header ?? "").trim();
+    const sheetFields = headers.flatMap((column, columnIndex) => {
       const cell = row[columnIndex];
       const cellValue = cell === null || cell === undefined ? "" : String(cell).trim();
       if (!column || !cellValue) return [];
@@ -130,6 +131,7 @@ export function parseLeads(rows: unknown[][], { spreadsheetId, sheetName }: Spre
       email: value("email"),
       company: value("company"),
       website: value("website"),
+      linkedin: value("linkedin"),
       context: value("context"),
       status: value("status") || "New",
       draftId: value("draftId"),
@@ -144,11 +146,14 @@ export function parseLeads(rows: unknown[][], { spreadsheetId, sheetName }: Spre
       sheetFields,
       sheetData,
     };
-    const validationErrors = (["name", "email"] as const)
-      .filter((field) => !lead[field])
-      .map((field) => `missing ${field}`);
-    if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) validationErrors.push("invalid email");
-    return { ...lead, validationErrors };
+    if (sheetFields.length === 0) return [];
+    const validationErrors = indexes.email === -1
+      ? ["email column could not be identified; draft skipped because a recipient email is required"]
+      : !lead.email ? ["missing email; draft skipped because a recipient email is required"] : [];
+    if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) {
+      validationErrors.push("invalid email; draft skipped because a valid recipient email is required");
+    }
+    return [{ ...lead, validationErrors }];
   });
 }
 
@@ -215,7 +220,7 @@ export async function getLeads(userId: string, { spreadsheetId, sheetName }: Spr
     const { sheets } = await getUserSheet(userId, spreadsheetId, sheetName);
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${quotedSheetName(sheetName)}!A1:ZZ`,
+      range: quotedSheetName(sheetName),
     });
     const rows = response.data.values || [];
     return parseLeads(rows, { spreadsheetId, sheetName });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GOOGLE_SCOPES } from "../src/config/constants.js";
-import { SpreadsheetValidationError, classifyGoogleSheetsPermissionFailure, findSheetIdByTitle, parseLeads, updateLeadStatus } from "../src/services/sheetsService.js";
+import { classifyGoogleSheetsPermissionFailure, findSheetIdByTitle, parseLeads, updateLeadStatus } from "../src/services/sheetsService.js";
 test("parses named lead columns and finds the Status column", () => {
     const leads = parseLeads([
         ["Name", "Email", "Company", "Website", "Message/Context", "Status"],
@@ -147,11 +147,50 @@ test("does not call Sheets when no status or metadata columns are mapped", async
     };
     await assert.doesNotReject(updateLeadStatus("user-id", lead, "Draft Created", "draft-1", "message-1", "thread-1"));
 });
-test("flags missing required row values and reports missing required headers clearly", () => {
+test("keeps rows without a recipient and explains why processing must skip them", () => {
     const leads = parseLeads([
         ["Name", "Email", "Company", "Status"],
         ["", "not-an-email", "", "New"],
     ], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
-    assert.deepEqual(leads[0].validationErrors, ["missing name", "invalid email"]);
-    assert.throws(() => parseLeads([["Name", "Status"]], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" }), (error) => error instanceof SpreadsheetValidationError && /Email/.test(error.message));
+    assert.deepEqual(leads[0].validationErrors, ["invalid email; draft skipped because a valid recipient email is required"]);
+    const withoutEmailHeader = parseLeads([["Organization", "Custom"], ["Acme", "Keep"]], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" });
+    assert.deepEqual(withoutEmailHeader[0].validationErrors, ["email column could not be identified; draft skipped because a recipient email is required"]);
+    assert.deepEqual(parseLeads([], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" }), []);
+    assert.deepEqual(parseLeads([["Company", "Status"]], { spreadsheetId: "sheet-id-123456789", sheetName: "Sheet1" }), []);
+});
+test("imports arbitrary reordered headers, duplicate headers, ragged rows, and custom values", () => {
+    const [lead] = parseLeads([
+        [" LinkedIn Profile ", "Mail ID", "Business", "Contact Name", "Custom", "Custom"],
+        ["https://linkedin.example/acme", "a@b.example", "Acme", "", "first", "second", "extra"],
+    ], { spreadsheetId: "sheet-id-123456789", sheetName: "Other" });
+    assert.equal(lead.linkedin, "https://linkedin.example/acme");
+    assert.equal(lead.email, "a@b.example");
+    assert.equal(lead.company, "Acme");
+    assert.equal(lead.name, "");
+    assert.deepEqual(lead.sheetFields?.slice(-3), [
+        { column: "Custom", value: "first" },
+        { column: "Custom", value: "second" },
+        { column: "Column G", value: "extra" },
+    ]);
+    assert.deepEqual(lead.validationErrors, []);
+});
+test("recognizes contact names and student names after unrelated leading columns", () => {
+    const [companyLead] = parseLeads([
+        ["Company", "Contact Name", "Email Address", "Requirement"],
+        ["Northstar Labs", "Avery Chen", "avery@example.com", "Analytics options"],
+    ], { spreadsheetId: "sheet-id-123456789", sheetName: "Companies" });
+    assert.equal(companyLead.name, "Avery Chen");
+    assert.equal(companyLead.company, "Northstar Labs");
+    const [studentLead] = parseLeads([
+        ["Student U.Roll", "Student Name", "Date of exam", "Time of exam"],
+        ["U-1042", "Mira Patel", "2026-05-12", "09:30"],
+    ], { spreadsheetId: "sheet-id-123456789", sheetName: "Students" });
+    assert.equal(studentLead.name, "Mira Patel");
+    assert.deepEqual(studentLead.sheetFields, [
+        { column: "Student U.Roll", value: "U-1042" },
+        { column: "Student Name", value: "Mira Patel" },
+        { column: "Date of exam", value: "2026-05-12" },
+        { column: "Time of exam", value: "09:30" },
+    ]);
+    assert.match(studentLead.validationErrors[0], /recipient email is required/);
 });

@@ -4,6 +4,7 @@ export interface Lead {
   email: string;
   company: string;
   website: string;
+  linkedin?: string;
   context: string;
   status: string;
   draftId: string;

@@ -8,7 +8,7 @@ export function useFollowUps() {
   if (!context) throw new Error('useFollowUps must be used within a FollowUpsProvider.');
   const { ensureLoaded } = context;
   useEffect(() => {
-    if (user?.id) void ensureLoaded(user.id).catch(() => {});
-  }, [ensureLoaded, user?.id]);
+    if (user?.id) void ensureLoaded(user.id, user.spreadsheetId, user.sheetName).catch(() => {});
+  }, [ensureLoaded, user?.id, user?.spreadsheetId, user?.sheetName]);
   return context;
 }

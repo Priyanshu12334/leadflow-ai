@@ -20,6 +20,12 @@ export function usagePeriodResetAt(periodStart) {
 function leadFingerprint(lead) {
     return crypto.createHash("sha256").update(JSON.stringify([
         lead.name, lead.email, lead.company, lead.website, lead.context,
+        ...(lead.sheetData ? [lead.sheetData] : []),
+    ])).digest("hex");
+}
+function legacyLeadFingerprint(lead) {
+    return crypto.createHash("sha256").update(JSON.stringify([
+        lead.name, lead.email, lead.company, lead.website, lead.context,
     ])).digest("hex");
 }
 export async function refreshUsageCycle(userId) {
@@ -157,7 +163,8 @@ function leadLabel(lead) {
 }
 export function decideLeadAction(lead, trackingRecord, sheetDraftId = lead.draftId) {
     const status = lead.status.trim().toLowerCase();
-    const sameTrackedLead = trackingRecord?.leadFingerprint === leadFingerprint(lead);
+    const sameTrackedLead = trackingRecord?.leadFingerprint === leadFingerprint(lead)
+        || trackingRecord?.leadFingerprint === legacyLeadFingerprint(lead);
     const trackedAsProcessed = sameTrackedLead && (trackingRecord.status === PROCESSING_STATUS.DRAFT_CREATED
         || trackingRecord.status === PROCESSING_STATUS.SENT
         || Boolean(trackingRecord.gmailDraftId));

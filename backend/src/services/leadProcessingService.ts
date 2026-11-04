@@ -47,6 +47,13 @@ export function usagePeriodResetAt(periodStart: Date): Date {
 function leadFingerprint(lead: Lead): string {
   return crypto.createHash("sha256").update(JSON.stringify([
     lead.name, lead.email, lead.company, lead.website, lead.context,
+    ...(lead.sheetData ? [lead.sheetData] : []),
+  ])).digest("hex");
+}
+
+function legacyLeadFingerprint(lead: Lead): string {
+  return crypto.createHash("sha256").update(JSON.stringify([
+    lead.name, lead.email, lead.company, lead.website, lead.context,
   ])).digest("hex");
 }
 
@@ -196,7 +203,8 @@ export function decideLeadAction(
   sheetDraftId = lead.draftId,
 ): LeadDecision {
   const status = lead.status.trim().toLowerCase();
-  const sameTrackedLead = trackingRecord?.leadFingerprint === leadFingerprint(lead);
+  const sameTrackedLead = trackingRecord?.leadFingerprint === leadFingerprint(lead)
+    || trackingRecord?.leadFingerprint === legacyLeadFingerprint(lead);
   const trackedAsProcessed = sameTrackedLead && (
     trackingRecord.status === PROCESSING_STATUS.DRAFT_CREATED
     || trackingRecord.status === PROCESSING_STATUS.SENT

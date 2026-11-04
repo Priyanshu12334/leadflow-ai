@@ -6,7 +6,7 @@ export interface FollowUpsContextValue {
   loading: boolean;
   refreshing: boolean;
   error: string;
-  ensureLoaded: (userId: string) => Promise<LeadListItem[]>;
+  ensureLoaded: (userId: string, spreadsheetId: string | null, sheetName: string) => Promise<LeadListItem[]>;
   refresh: () => Promise<void>;
 }
 

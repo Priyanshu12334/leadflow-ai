@@ -74,7 +74,7 @@ export const ProcessLeadsCard = ({ onProcessingComplete }: ProcessLeadsCardProps
       <div className="mb-5">
         <h2 className="text-sm font-semibold text-slate-200">Process Leads</h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Reads your Google Sheet and generates personalized Gmail drafts. Only Name and Email columns are required; Company, Requirement, Phone, Website, and other fields are optional.
+          Reads each row in your Google Sheet and uses its available fields to prepare personalized Gmail drafts. A valid email address is required for each draft; a contact name is optional.
         </p>
       </div>
 
