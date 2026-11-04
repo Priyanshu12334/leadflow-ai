@@ -4,6 +4,7 @@ import { authenticatedUserSelect, type AuthenticatedUser } from "../types/authen
 import { decryptToken } from "../services/tokenEncryptionService.js";
 import { createOAuthClient } from "../services/googleOAuthService.js";
 import { getConfiguredSheetId } from "../services/sheetsService.js";
+import { buildSpreadsheetOpenUrl } from "../services/googleSheetsUrlService.js";
 import { refreshUsageCycle, usagePeriodResetAt } from "../services/leadProcessingService.js";
 
 function publicUser(user: AuthenticatedUser & { usagePeriodResetAt?: Date }) {
@@ -46,9 +47,8 @@ export const getSpreadsheetOpenLink: RequestHandler = async (req, res, next) => 
       return res.status(404).json({ error: `The configured tab "${sheetName}" was not found. Check its name and save your settings.`, code: "SHEET_TAB_NOT_FOUND" });
     }
 
-    const url = new URL(`/spreadsheets/d/${encodeURIComponent(spreadsheetId)}/edit`, "https://docs.google.com");
-    url.hash = new URLSearchParams({ gid: String(sheetId) }).toString();
-    return res.json({ url: url.toString(), sheetId, sheetName });
+    const url = buildSpreadsheetOpenUrl(spreadsheetId, sheetId);
+    return res.json({ url, sheetId, sheetName });
   } catch (error) {
     return next(error);
   }

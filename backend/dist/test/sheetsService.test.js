@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GOOGLE_SCOPES } from "../src/config/constants.js";
 import { classifyGoogleSheetsPermissionFailure, findSheetIdByTitle, parseLeads, updateLeadStatus } from "../src/services/sheetsService.js";
+import { buildSpreadsheetOpenUrl } from "../src/services/googleSheetsUrlService.js";
 test("parses named lead columns and finds the Status column", () => {
     const leads = parseLeads([
         ["Name", "Email", "Company", "Website", "Message/Context", "Status"],
@@ -79,6 +80,13 @@ test("resolves the configured tab to Google's numeric gid and handles missing ta
     assert.equal(findSheetIdByTitle(metadata, "Sheet2"), 84729163);
     assert.equal(findSheetIdByTitle(metadata, "Renamed tab"), null);
     assert.equal(findSheetIdByTitle(undefined, "Sheet1"), null);
+});
+test("open link carries the configured gid for desktop fragments and mobile redirects", () => {
+    const url = new URL(buildSpreadsheetOpenUrl("spreadsheet_id-123456789", 987654321));
+    assert.equal(url.origin, "https://docs.google.com");
+    assert.equal(url.pathname, "/spreadsheets/d/spreadsheet_id-123456789/edit");
+    assert.equal(url.searchParams.get("gid"), "987654321");
+    assert.equal(new URLSearchParams(url.hash.slice(1)).get("gid"), "987654321");
 });
 test("inspects Google error details before classifying a Sheets 403", () => {
     assert.equal(classifyGoogleSheetsPermissionFailure({
