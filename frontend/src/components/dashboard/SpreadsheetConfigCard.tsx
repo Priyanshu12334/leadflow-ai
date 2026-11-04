@@ -223,10 +223,12 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
           {user?.spreadsheetId && isValidSpreadsheetId(user.spreadsheetId) && user.googleConnected ? (
             <div className="flex flex-col gap-2">
               <a
-                href={configuredSheetUrl || `https://docs.google.com/spreadsheets/d/${encodeURIComponent(user.spreadsheetId)}/edit`}
+                href={configuredSheetUrl || undefined}
+                aria-disabled={!configuredSheetUrl}
+                tabIndex={configuredSheetUrl ? 0 : -1}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 self-start rounded-md bg-[#187935] border-[#188038] px-3 py-2 text-xs font-medium text-white hover:bg-[#177433] transition-colors cursor-pointer"
+                className={`inline-flex items-center gap-1 self-start rounded-md bg-[#187935] border-[#188038] px-3 py-2 text-xs font-medium text-white transition-colors ${configuredSheetUrl ? 'cursor-pointer hover:bg-[#177433]' : 'cursor-not-allowed opacity-60'}`}
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 Open in Google Sheets
