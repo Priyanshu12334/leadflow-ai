@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLeadEmailPrompt, generateEmail, parseGeneratedEmail, validateGeneratedEmail } from "../src/services/geminiService.js";
+import { buildLeadEmailPrompt, generateEmail, parseGeneratedEmail, validateGeneratedEmail, withGeminiTimeout } from "../src/services/geminiService.js";
 import type { Lead } from "../src/types/domain.js";
 
 function testLead(overrides: Partial<Lead> = {}): Lead {
@@ -25,6 +25,15 @@ function testLead(overrides: Partial<Lead> = {}): Lead {
     ...overrides,
   };
 }
+
+test("Gemini request timeout rejects the active call", async () => {
+  let aborted = false;
+  await assert.rejects(
+    withGeminiTimeout(new Promise(() => {}), 5, () => { aborted = true; }),
+    /Gemini request timed out after 1 seconds/,
+  );
+  assert.equal(aborted, true);
+});
 
 test("email prompt includes actual non-empty sheet labels and values with context-aware, low-pressure guidance", () => {
   const prompt = buildLeadEmailPrompt(testLead({
@@ -136,17 +145,27 @@ test("active generateEmail path sends the row-personalized prompt and validates 
       { column: "Notes", value: "Comparing reporting options" },
     ],
   });
+  const previousModel = process.env.GEMINI_MODEL;
+  process.env.GEMINI_MODEL = "gemini-test-model";
   let sentPrompt = "";
-  const email = await generateEmail(lead, async (_model, contents) => {
-    sentPrompt = contents;
-    return { text: JSON.stringify({
-      subject: "Following up on inventory analytics",
-      body: "Hi Maya, I am following up on your interest in inventory analytics and your note about comparing reporting options. Reply with any questions or requirements you would like to clarify. I can share relevant information based on what would be most useful. Best regards,\nThe Team",
-    }) };
-  });
+  let sentModel = "";
+  try {
+    const email = await generateEmail(lead, async (model, contents) => {
+      sentModel = model;
+      sentPrompt = contents;
+      return { text: JSON.stringify({
+        subject: "Following up on inventory analytics",
+        body: "Hi Maya, I am following up on your interest in inventory analytics and your note about comparing reporting options. Reply with any questions or requirements you would like to clarify. I can share relevant information based on what would be most useful. Best regards,\nThe Team",
+      }) };
+    });
 
-  assert.match(sentPrompt, /Inventory analytics/);
-  assert.match(sentPrompt, /Comparing reporting options/);
-  assert.equal(email.subject, "Following up on inventory analytics");
-  assert.match(email.body, /Best regards,\nThe Team/);
+    assert.match(sentPrompt, /Inventory analytics/);
+    assert.match(sentPrompt, /Comparing reporting options/);
+    assert.equal(email.subject, "Following up on inventory analytics");
+    assert.match(email.body, /Best regards,\nThe Team/);
+  } finally {
+    if (previousModel === undefined) delete process.env.GEMINI_MODEL;
+    else process.env.GEMINI_MODEL = previousModel;
+  }
+  assert.equal(sentModel, "gemini-test-model");
 });

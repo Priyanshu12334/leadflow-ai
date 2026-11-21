@@ -57,7 +57,12 @@ test("lead status and validation resolve to a single row action", () => {
     assert.equal(decideLeadAction(draftCreatedLead, trackedDraft).action, "skipped");
     assert.equal(decideLeadAction(lead, trackedDraft).action, "skipped");
     assert.equal(decideLeadAction(draftCreatedLead, { ...trackedDraft, leadFingerprint: "different-lead" }).action, "create");
-    assert.equal(decideLeadAction({ ...lead, status: "Failed" }).action, "skipped");
+    assert.equal(decideLeadAction({ ...draftCreatedLead, status: "Draft Created" }, {
+        ...trackedDraft,
+        gmailDraftId: null,
+    }).action, "create");
+    assert.equal(decideLeadAction({ ...lead, status: "Failed" }).action, "create");
+    assert.equal(decideLeadAction(lead, { ...trackedDraft, status: "failed", gmailDraftId: null }).action, "create");
     assert.equal(decideLeadAction({ ...lead, status: "Sent" }).action, "skipped");
     assert.equal(decideLeadAction({ ...lead, validationErrors: ["missing email"] }).action, "skipped");
     assert.equal(decideLeadAction({ ...lead, status: "Sent", validationErrors: ["missing email"] }).action, "skipped");

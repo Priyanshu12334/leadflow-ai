@@ -2,10 +2,12 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  isDemo: boolean;
   plan: 'free' | 'pro';
   draftsUsed: number;
   draftLimit: number;
   usagePeriodStart: string;
+  quotaCycleStartAt: string;
   usagePeriodResetAt: string;
   googleConnected: boolean;
   spreadsheetId: string | null;
@@ -32,11 +34,24 @@ export interface LeadProcessingResult {
   skipped: number;
   failed: number;
   limitReached?: boolean;
+  aiRateLimitReached?: boolean;
   draftsUsed?: number;
   draftLimit?: number;
   usagePeriodStart?: string;
+  quotaCycleStartAt?: string;
   usagePeriodResetAt?: string;
   details?: LeadProcessingDetail[];
+}
+
+export interface LeadProcessingJob {
+  jobId: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  currentLead: number;
+  totalLeads: number;
+  draftsCreated: number;
+  failed: number;
+  error?: string;
+  result?: LeadProcessingResult;
 }
 
 export interface LeadListItem {

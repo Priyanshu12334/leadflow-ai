@@ -2,7 +2,18 @@ import { GoogleGenAI } from "@google/genai";
 import { errorMessage } from "../types/errors.js";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MAX_GEMINI_RETRIES = 2;
+const MAX_GEMINI_RATE_LIMIT_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 250;
+const DEFAULT_RATE_LIMIT_RETRY_DELAY_MS = 20_000;
+const GEMINI_REQUEST_INTERVAL_MS = 13_000;
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+export const GEMINI_RATE_LIMIT_MESSAGE = "AI rate limit reached, please try again in a minute.";
+export class GeminiRateLimitError extends Error {
+    constructor(cause) {
+        super(GEMINI_RATE_LIMIT_MESSAGE, { cause });
+        this.name = "GeminiRateLimitError";
+    }
+}
 function getGeminiStatus(error) {
     if (!(error instanceof Error))
         return null;
@@ -10,6 +21,8 @@ function getGeminiStatus(error) {
     const status = Number(details.status ?? details.statusCode ?? details.response?.status ?? details.code);
     if (status === 503 || status === 429)
         return status;
+    if (/RESOURCE_EXHAUSTED|TOO MANY REQUESTS/i.test(String(details.code || "")))
+        return 429;
     const message = error.message.toUpperCase();
     if (/\b503\b|UNAVAILABLE/.test(message))
         return 503;
@@ -20,6 +33,101 @@ function getGeminiStatus(error) {
 function wait(milliseconds) {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
+export function withGeminiTimeout(request, timeoutMs = GEMINI_REQUEST_TIMEOUT_MS, onTimeout) {
+    let timeout;
+    const timedOut = new Promise((_resolve, reject) => {
+        timeout = setTimeout(() => {
+            onTimeout?.();
+            reject(new Error(`Gemini request timed out after ${Math.ceil(timeoutMs / 1000)} seconds.`));
+        }, timeoutMs);
+    });
+    return Promise.race([request, timedOut]).finally(() => clearTimeout(timeout));
+}
+function parseRetryDelay(value) {
+    if (typeof value === "number")
+        return Number.isFinite(value) && value >= 0 ? value * 1000 : null;
+    if (typeof value !== "string")
+        return null;
+    const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*(ms|msec|milliseconds?|s|sec(?:ond)?s?)?$/i);
+    if (!match)
+        return null;
+    const amount = Number(match[1]);
+    return match[2]?.toLowerCase().startsWith("m") ? amount : amount * 1000;
+}
+function getRetryAfterHeader(headers) {
+    if (typeof headers !== "object" || headers === null)
+        return null;
+    if ("get" in headers && typeof headers.get === "function") {
+        const value = headers.get("retry-after");
+        if (typeof value === "string" || typeof value === "number")
+            return String(value);
+    }
+    const entry = Object.entries(headers).find(([name]) => name.toLowerCase() === "retry-after");
+    return typeof entry?.[1] === "string" || typeof entry?.[1] === "number" ? String(entry[1]) : null;
+}
+function retryDelayFromDetails(value) {
+    if (Array.isArray(value)) {
+        for (const detail of value) {
+            const delay = retryDelayFromDetails(detail);
+            if (delay !== null)
+                return delay;
+        }
+        return null;
+    }
+    if (typeof value !== "object" || value === null)
+        return null;
+    if ("retryDelay" in value) {
+        const delay = parseRetryDelay(value.retryDelay);
+        if (delay !== null)
+            return delay;
+    }
+    if ("details" in value) {
+        const delay = retryDelayFromDetails(value.details);
+        if (delay !== null)
+            return delay;
+    }
+    if ("error" in value)
+        return retryDelayFromDetails(value.error);
+    return null;
+}
+function getRateLimitRetryDelay(error) {
+    if (!(error instanceof Error))
+        return null;
+    const details = error;
+    const header = getRetryAfterHeader(details.response?.headers)
+        ?? getRetryAfterHeader(details.headers)
+        ?? getRetryAfterHeader(details.responseHeaders);
+    const headerDelay = header === null
+        ? null
+        : parseRetryDelay(header) ?? (Number.isNaN(Date.parse(header)) ? null : Math.max(0, Date.parse(header) - Date.now()));
+    const messageDelay = error.message.match(/(?:retry\s+(?:after|in)|retryDelay["']?\s*[:=])\s*["']?(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|sec(?:ond)?s?)?/i);
+    return parseRetryDelay(details.retryDelay)
+        ?? parseRetryDelay(details.retryAfter)
+        ?? headerDelay
+        ?? retryDelayFromDetails(details.response?.data)
+        ?? retryDelayFromDetails(details.details)
+        ?? (messageDelay ? parseRetryDelay(`${messageDelay[1]}${messageDelay[2] || "s"}`) : null);
+}
+export function createGeminiRequestScheduler(intervalMs = GEMINI_REQUEST_INTERVAL_MS, delay = wait, now = () => Date.now()) {
+    let queue = Promise.resolve();
+    let nextRequestAt = 0;
+    return (request) => {
+        const result = queue.then(async () => {
+            try {
+                const remainingDelay = Math.max(0, nextRequestAt - now());
+                if (remainingDelay > 0)
+                    await delay(remainingDelay);
+                return await request();
+            }
+            finally {
+                nextRequestAt = now() + intervalMs;
+            }
+        });
+        queue = result.then(() => undefined, () => undefined);
+        return result;
+    };
+}
+const enqueueGeminiRequest = createGeminiRequestScheduler(GEMINI_REQUEST_INTERVAL_MS, wait);
 export async function withGeminiRetries(request, delay = wait) {
     let retries = 0;
     while (true) {
@@ -28,15 +136,22 @@ export async function withGeminiRetries(request, delay = wait) {
         }
         catch (error) {
             const status = getGeminiStatus(error);
-            if ((status !== 503 && status !== 429) || retries >= MAX_GEMINI_RETRIES) {
+            const maxRetries = status === 429 ? MAX_GEMINI_RATE_LIMIT_RETRIES : MAX_GEMINI_RETRIES;
+            if ((status !== 503 && status !== 429) || retries >= maxRetries) {
+                if (status === 429)
+                    throw new GeminiRateLimitError(error);
                 const category = status === 503
                     ? "Gemini 503 UNAVAILABLE"
-                    : status === 429
-                        ? "Gemini 429 RESOURCE_EXHAUSTED"
-                        : "Gemini generation error";
+                    : "Gemini generation error";
                 throw new Error(`${category}: ${errorMessage(error) || "The generation request failed."}`, { cause: error });
             }
-            await delay(INITIAL_RETRY_DELAY_MS * (2 ** retries));
+            const retryDelay = status === 429
+                ? (getRateLimitRetryDelay(error) ?? DEFAULT_RATE_LIMIT_RETRY_DELAY_MS) * (2 ** retries)
+                : INITIAL_RETRY_DELAY_MS * (2 ** retries);
+            if (status === 429) {
+                console.warn(`Gemini rate limit (429): retry ${retries + 1}/${MAX_GEMINI_RATE_LIMIT_RETRIES} in ${retryDelay}ms.`);
+            }
+            await delay(retryDelay);
             retries += 1;
         }
     }
@@ -122,9 +237,12 @@ export function parseGeneratedEmail(responseText, lead) {
     }
     return validateGeneratedEmail({ subject: email.subject, body: email.body }, lead);
 }
-export async function generateEmail(lead, generateContent = (model, contents) => ai.models.generateContent({ model, contents })) {
+export async function generateEmail(lead, generateContent = (model, contents, signal) => ai.models.generateContent({ model, contents, config: { abortSignal: signal } })) {
     const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
     const prompt = buildLeadEmailPrompt(lead);
-    const response = await withGeminiRetries(() => generateContent(model, prompt));
+    const response = await withGeminiRetries(() => enqueueGeminiRequest(() => {
+        const controller = new AbortController();
+        return withGeminiTimeout(generateContent(model, prompt, controller.signal), GEMINI_REQUEST_TIMEOUT_MS, () => controller.abort());
+    }));
     return parseGeneratedEmail(response.text || "", lead);
 }

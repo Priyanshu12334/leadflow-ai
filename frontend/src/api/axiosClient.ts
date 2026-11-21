@@ -3,6 +3,7 @@ import type { ApiError } from '../types';
 import { getErrorMessage } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+export const DEMO_TOKEN_STORAGE_KEY = 'leadflow-demo-token';
 
 export const axiosClient = axios.create({
   baseURL: API_BASE_URL,
@@ -10,6 +11,12 @@ export const axiosClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+axiosClient.interceptors.request.use((request) => {
+  const demoToken = window.sessionStorage.getItem(DEMO_TOKEN_STORAGE_KEY);
+  if (demoToken) request.headers.set('Authorization', `Bearer ${demoToken}`);
+  return request;
 });
 
 axiosClient.interceptors.response.use(

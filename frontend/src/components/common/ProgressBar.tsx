@@ -5,14 +5,15 @@ interface ProgressBarProps {
   total?: number;
   showLabel?: boolean;
   label?: string;
+  color?: 'emerald';
 }
 
-export const ProgressBar = ({ used = 0, total = 20, showLabel = true, label = 'Usage' }: ProgressBarProps) => {
+export const ProgressBar = ({ used = 0, total = 20, showLabel = true, label = 'Usage', color }: ProgressBarProps) => {
   const percentage = Math.min(Math.round((used / (total || 1)) * 100), 100);
 
-  let barColor = 'bg-indigo-500';
-  if (percentage >= 90) barColor = 'bg-red-500';
-  else if (percentage >= 75) barColor = 'bg-amber-500';
+  let barColor = color === 'emerald' ? 'bg-emerald-500' : 'bg-indigo-500';
+  if (!color && percentage >= 90) barColor = 'bg-red-500';
+  else if (!color && percentage >= 75) barColor = 'bg-amber-500';
 
   return (
     <div className="w-full">

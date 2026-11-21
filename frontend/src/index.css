@@ -154,3 +154,53 @@ p[class]:not([class~="font-bold"]):not([class~="font-semibold"]):not([class~="fo
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.process-leads-helper {
+  position: relative;
+  height: 2.5rem;
+  overflow: hidden;
+}
+
+.process-leads-helper__message {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.process-leads-helper__message--enter {
+  animation: process-leads-helper-enter 400ms ease-in-out both;
+}
+
+.process-leads-helper__message--exit {
+  animation: process-leads-helper-exit 400ms ease-in-out both;
+}
+
+@keyframes process-leads-helper-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes process-leads-helper-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes process-leads-helper-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes process-leads-helper-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .process-leads-helper__message--enter {
+    animation: process-leads-helper-fade-in 150ms ease-in-out both;
+  }
+
+  .process-leads-helper__message--exit {
+    animation: process-leads-helper-fade-out 150ms ease-in-out both;
+  }
+}

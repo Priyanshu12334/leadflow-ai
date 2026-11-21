@@ -22,6 +22,7 @@ model User {
   id                 String           @id @default(uuid())
   name               String           @db.VarChar(200)
   email              String           @unique
+  isDemo             Boolean          @default(false)
   googleId           String           @unique
   googleRefreshToken String?
   plan               UserPlan         @default(free)
@@ -29,6 +30,7 @@ model User {
   draftsReserved     Int              @default(0)
   draftLimit         Int
   usagePeriodStart   DateTime         @default(now()) @db.Timestamptz(3)
+  quotaCycleStartAt  DateTime         @default(now()) @db.Timestamptz(3)
   spreadsheetId      String?
   sheetName          String           @default("Sheet1") @db.VarChar(100)
   createdAt          DateTime         @default(now()) @db.Timestamptz(3)

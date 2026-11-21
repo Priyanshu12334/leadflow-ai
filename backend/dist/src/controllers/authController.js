@@ -23,6 +23,33 @@ function isOAuthState(value) {
 function issueAccessToken(user) {
     return jwt.sign({ sub: user.id }, getRequiredEnvironmentValue("JWT_SECRET"), { expiresIn: "7d" });
 }
+export const createDemoSession = async (_req, res, next) => {
+    try {
+        const now = new Date();
+        const usagePeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        const user = await prisma.user.upsert({
+            where: { email: "demo@leadflow.local" },
+            create: {
+                name: "LeadFlow Demo",
+                email: "demo@leadflow.local",
+                googleId: "leadflow-demo-user",
+                isDemo: true,
+                draftLimit: 5,
+                usagePeriodStart,
+            },
+            update: {},
+            select: { id: true, name: true, email: true, isDemo: true },
+        });
+        if (!user.isDemo)
+            return res.status(409).json({ error: "The demo account is unavailable." });
+        clearCookieAtPath(res, "access_token", "/");
+        clearCookieAtPath(res, "access_token", "/api/auth/google");
+        return res.json({ user, token: issueAccessToken(user) });
+    }
+    catch (error) {
+        return next(error);
+    }
+};
 function oauthErrorUrl(code, userId) {
     const destination = userId ? config.clientSuccessUrl : config.frontendOrigin;
     const url = new URL(destination, config.frontendOrigin);
@@ -155,6 +182,7 @@ export const completeGoogleOAuth = async (req, res) => {
                     draftsReserved: 0,
                     draftLimit: PLAN_LIMITS.free,
                     usagePeriodStart: new Date(),
+                    quotaCycleStartAt: new Date(),
                     spreadsheetId: null,
                     sheetName: "Sheet1",
                 },

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Menu, Moon, Sun } from 'lucide-react';
-import { AuthProvider } from './context/AuthContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { FollowUpsProvider } from './context/FollowUpsContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { DemoRoute } from './components/common/DemoRoute';
 import { PublicOnlyRoute } from './components/common/PublicOnlyRoute';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
@@ -23,6 +24,47 @@ import type { PropsWithChildren } from 'react';
 
 type Theme = 'dark' | 'light';
 
+function isDemoPath(pathname: string): boolean {
+  return pathname === '/demo' || pathname.startsWith('/demo/');
+}
+
+function DemoHistoryGuard() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const replacedEntry = useRef(false);
+  const restoringFromBack = useRef(false);
+
+  useEffect(() => {
+    if (!user?.isDemo || !isDemoPath(location.pathname) || replacedEntry.current) return;
+    window.history.replaceState(window.history.state, '', window.location.href);
+    replacedEntry.current = true;
+  }, [location.pathname, user?.isDemo]);
+
+  useEffect(() => {
+    if (!user?.isDemo) return undefined;
+    const keepDemoOpen = () => {
+      if (!isDemoPath(window.location.pathname)) {
+        restoringFromBack.current = true;
+        navigate('/demo');
+      }
+    };
+    window.addEventListener('popstate', keepDemoOpen, true);
+    return () => window.removeEventListener('popstate', keepDemoOpen, true);
+  }, [navigate, user?.isDemo]);
+
+  useEffect(() => {
+    if (!user?.isDemo) return;
+    if (isDemoPath(location.pathname)) {
+      restoringFromBack.current = false;
+      return;
+    }
+    if (!restoringFromBack.current) navigate('/demo', { replace: true });
+  }, [location.pathname, navigate, user?.isDemo]);
+
+  return null;
+}
+
 interface ThemeLayoutProps extends PropsWithChildren {
   theme: Theme;
   onToggleTheme: () => void;
@@ -40,6 +82,7 @@ function LandingLayout({ children, theme, onToggleTheme }: ThemeLayoutProps) {
 
 function DashboardLayout({ children, theme, onToggleTheme }: PropsWithChildren<{ theme: Theme; onToggleTheme: () => void }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -70,6 +113,14 @@ function DashboardLayout({ children, theme, onToggleTheme }: PropsWithChildren<{
             </button>
           </div>
         </header>
+        {user?.isDemo && (
+          <div className="flex justify-end border-b border-indigo-400/20 bg-indigo-500/5 px-4 py-2 sm:px-6">
+            <button type="button" onClick={() => { void logout(); }} className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-red-500 px-4 text-sm font-medium text-white transition-colors hover:bg-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+              <LogOut className="h-4 w-4" />
+              Logout from demo
+            </button>
+          </div>
+        )}
         <main className="w-full min-w-0">{children}</main>
       </div>
     </div>
@@ -91,6 +142,7 @@ export default function App() {
     <BrowserRouter>
       <RouteScrollManager />
       <AuthProvider>
+        <DemoHistoryGuard />
         <FollowUpsProvider>
         <Routes>
           <Route
@@ -123,7 +175,53 @@ export default function App() {
             }
           />
 
-          {/* Protected Dashboard Route (Redirects to / if unauthenticated) */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <LandingLayout theme={theme} onToggleTheme={toggleTheme}>
+                  <LandingPage />
+                </LandingLayout>
+              </PublicOnlyRoute>
+            }
+          />
+
+          <Route
+            path="/demo"
+            element={
+              <DemoRoute>
+                <DashboardLayout theme={theme} onToggleTheme={toggleTheme}>
+                  <DashboardPage theme={theme} onToggleTheme={toggleTheme} />
+                </DashboardLayout>
+              </DemoRoute>
+            }
+          />
+
+          <Route
+            path="/demo/leads"
+            element={
+              <DemoRoute>
+                <DashboardLayout theme={theme} onToggleTheme={toggleTheme}>
+                  <LeadsPage />
+                </DashboardLayout>
+              </DemoRoute>
+            }
+          />
+
+          <Route
+            path="/demo/settings"
+            element={
+              <DemoRoute>
+                <DashboardLayout theme={theme} onToggleTheme={toggleTheme}>
+                  <SettingsPage />
+                </DashboardLayout>
+              </DemoRoute>
+            }
+          />
+
+          <Route path="/demo/*" element={<DemoRoute><Navigate to="/demo" replace /></DemoRoute>} />
+
+          {/* Protected Dashboard Route */}
           <Route
             path="/dashboard"
             element={

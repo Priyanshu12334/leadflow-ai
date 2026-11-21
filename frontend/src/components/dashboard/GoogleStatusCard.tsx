@@ -9,6 +9,7 @@ export const GoogleStatusCard = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isConnected = Boolean(user?.googleConnected);
+  const isDemo = Boolean(user?.isDemo);
 
   const handleDisconnect = async () => {
     if (!window.confirm('Disconnect Google access? Your LeadFlow account, quota, and processing history will remain.')) return;
@@ -33,11 +34,16 @@ export const GoogleStatusCard = () => {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-200">Google Account</p>
-            <p className="text-xs text-slate-500">Gmail & Sheets access</p>
+            <p className="text-xs text-slate-500">{isDemo ? 'Not required in demo' : 'Gmail & Sheets access'}</p>
           </div>
         </div>
 
-        {isConnected ? (
+        {isDemo ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-500/25 bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-300">
+            <CheckCircle2 className="w-3 h-3" />
+            Not required in demo
+          </span>
+        ) : isConnected ? (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-500 border-emerald-500/25 px-2 py-0.5 rounded-full">
             <CheckCircle2 className="w-3 h-3" />
             Connected
@@ -51,7 +57,11 @@ export const GoogleStatusCard = () => {
       </div>
 
       {/* Body */}
-      {isConnected ? (
+      {isDemo ? (
+        <div className="mb-4 rounded-md border border-indigo-500/20 bg-indigo-500/8 px-3 py-2.5">
+          <p className="text-xs text-indigo-200">Google access is not required in demo mode.</p>
+        </div>
+      ) : isConnected ? (
         <div className="bg-[#0f1117] border border-[#2a2d3a] rounded-md px-3 py-2.5 mb-4">
           <p className="text-xs text-slate-500 mb-0.5">Connected account</p>
           <p className="dashboard-secondary-email text-sm font-medium text-slate-200 truncate">{user?.email}</p>
@@ -66,8 +76,8 @@ export const GoogleStatusCard = () => {
       )}
 
       {/* Footer */}
-      {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
-      <div className="flex items-center justify-between gap-3">
+      {!isDemo && error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
+      {!isDemo && <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-slate-600 flex items-center gap-1">
          
           OAuth 2.0 secured
@@ -93,7 +103,7 @@ export const GoogleStatusCard = () => {
             {isConnected ? 'Reconnect' : 'Connect Google'}
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

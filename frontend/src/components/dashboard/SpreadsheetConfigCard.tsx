@@ -112,6 +112,25 @@ export const SpreadsheetConfigCard = ({ onConfigSaved }: SpreadsheetConfigCardPr
     setSheetName('Sheet1');
   };
 
+  if (user?.isDemo) {
+    return (
+      <div className="rounded-lg border border-[#2a2d3a] bg-[#1a1d27] p-5 sm:p-6">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-[#34A853]/20">
+            <SiGooglesheets aria-hidden="true" className="h-7 w-8 text-[#34A853]" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-200">Google Sheet</p>
+            <p className="text-xs text-slate-500">Not required in demo</p>
+          </div>
+        </div>
+        <p className="mt-4 rounded-md border border-indigo-500/20 bg-indigo-500/8 px-3 py-2.5 text-xs text-indigo-200">
+          Demo leads are loaded automatically. No spreadsheet setup is needed.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#1a1d27] border border-[#2a2d3a] rounded-lg p-5 sm:p-6">
       {/* Header */}

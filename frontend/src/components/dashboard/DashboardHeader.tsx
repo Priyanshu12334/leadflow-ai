@@ -26,7 +26,10 @@ export const DashboardHeader = ({ theme, onToggleTheme }: DashboardHeaderProps) 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-100">{user?.name?.trim() ? ` ${user.name.trim()}` : 'Welcome back!'}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold text-slate-100">{user?.name?.trim() ? ` ${user.name.trim()}` : 'Welcome back!'}</h1>
+          {user?.isDemo && <span className="rounded-full border border-indigo-400/25 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-300">Demo mode</span>}
+        </div>
         <p className="mt-0.5 text-xs text-slate-500">Your account and lead activity at a glance.</p>
       </div>
 

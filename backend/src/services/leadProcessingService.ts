@@ -4,8 +4,8 @@ import type { LeadProcessing } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { PROCESSING_STATUS } from "../config/constants.js";
 import { createDraft } from "./gmailService.js";
-import { generateEmail } from "./geminiService.js";
-import { getLeads, updateLeadStatus } from "./sheetsService.js";
+import { generateEmail, GeminiRateLimitError, GEMINI_RATE_LIMIT_MESSAGE } from "./geminiService.js";
+import { getConfiguredSheetId, getLeads, SpreadsheetValidationError, updateLeadStatus } from "./sheetsService.js";
 import type { Lead, SpreadsheetLocation } from "../types/domain.js";
 import { errorMessage } from "../types/errors.js";
 
@@ -28,20 +28,59 @@ export interface ProcessingResultDetail extends ProcessingResult {
   rowNumber: number;
 }
 
+export interface LeadProcessingProgress {
+  currentLead: number;
+  totalLeads: number;
+  draftsCreated: number;
+  failed: number;
+}
+
+export function getDemoProcessingResult() {
+  return {
+    message: "8 demo drafts generated.",
+    processed: 8,
+    created: 8,
+    skipped: 0,
+    failed: 0,
+    limitReached: false,
+  };
+}
+
 type LeadDecision = ProcessingResult | { action: "create"; reason: string };
 type LeadRecordUpdate = Prisma.LeadProcessingUpdateManyMutationInput;
 type LeadTrackingRecord = Pick<LeadProcessing, "status">
   & Partial<Pick<LeadProcessing, "leadFingerprint" | "gmailDraftId" | "gmailMessageId" | "gmailThreadId">>;
 
 export class UsageLimitError extends Error {
-  constructor() {
-    super("Your 30-day AI draft limit has been reached.");
+  constructor(isDemo = false, resetAt?: Date) {
+    super(isDemo
+      ? "Your daily AI demo draft limit has been reached."
+      : `Draft limit reached. Resets on ${formatUsageResetDate(resetAt || usagePeriodResetAt(new Date()))}.`);
     this.name = "UsageLimitError";
   }
 }
 
-export function usagePeriodResetAt(periodStart: Date): Date {
+export function formatUsageResetDate(resetAt: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(resetAt);
+}
+
+export function usagePeriodResetAt(periodStart: Date, isDemo = false): Date {
+  if (isDemo) {
+    const resetAt = new Date(periodStart);
+    resetAt.setUTCHours(0, 0, 0, 0);
+    resetAt.setUTCDate(resetAt.getUTCDate() + 1);
+    return resetAt;
+  }
   return new Date(periodStart.getTime() + USAGE_CYCLE_MS);
+}
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
 function leadFingerprint(lead: Lead): string {
@@ -61,22 +100,36 @@ export async function refreshUsageCycle(userId: UserId) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error("Authenticated user no longer exists.");
-    const resetAt = usagePeriodResetAt(user.usagePeriodStart);
-    if (new Date() < resetAt) return { ...user, usagePeriodResetAt: resetAt };
-    const advanced = await prisma.user.updateMany({
-      where: { id: userId, usagePeriodStart: user.usagePeriodStart },
-      data: { draftsUsed: 0, draftsReserved: 0, usagePeriodStart: resetAt },
-    });
+    const now = new Date();
+    const cycleStartAt = user.isDemo ? user.usagePeriodStart : user.quotaCycleStartAt;
+    const resetAt = usagePeriodResetAt(cycleStartAt, user.isDemo);
+    if (now < resetAt) return { ...user, usagePeriodResetAt: resetAt };
+    const advanced = user.isDemo
+      ? await prisma.user.updateMany({
+        where: { id: userId, usagePeriodStart: user.usagePeriodStart },
+        data: {
+          draftsUsed: 0,
+          draftsReserved: 0,
+          usagePeriodStart: startOfUtcDay(now),
+        },
+      })
+      : await prisma.user.updateMany({
+        where: { id: userId, quotaCycleStartAt: user.quotaCycleStartAt },
+        data: {
+          draftsUsed: 0,
+          quotaCycleStartAt: now,
+        },
+      });
     if (advanced.count === 1) continue;
   }
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("Authenticated user no longer exists.");
-  const resetAt = usagePeriodResetAt(user.usagePeriodStart);
+  const resetAt = usagePeriodResetAt(user.isDemo ? user.usagePeriodStart : user.quotaCycleStartAt, user.isDemo);
   if (new Date() >= resetAt) return refreshUsageCycle(userId);
   return { ...user, usagePeriodResetAt: resetAt };
 }
 
-export async function reserveDraftUsage(userId: UserId): Promise<Date> {
+export async function reserveDraftUsage(userId: UserId): Promise<void> {
   const user = await refreshUsageCycle(userId);
   const updated = await prisma.$executeRaw`
     UPDATE "User"
@@ -84,23 +137,30 @@ export async function reserveDraftUsage(userId: UserId): Promise<Date> {
         "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${userId}
       AND "draftsUsed" + "draftsReserved" < "draftLimit"
-      AND "usagePeriodStart" = ${user.usagePeriodStart}
+      AND "quotaCycleStartAt" = ${user.quotaCycleStartAt}
   `;
-  if (updated === 0) throw new UsageLimitError();
-  return user.usagePeriodStart;
+  if (updated === 0) throw new UsageLimitError(
+    user.isDemo,
+    usagePeriodResetAt(user.isDemo ? user.usagePeriodStart : user.quotaCycleStartAt, user.isDemo),
+  );
 }
 
-async function commitDraftUsage(userId: UserId, periodStart: Date): Promise<void> {
+async function commitDraftUsage(userId: UserId, createdAt: Date): Promise<void> {
+  const user = await refreshUsageCycle(userId);
+  const createdInCurrentCycle = createdAt >= user.quotaCycleStartAt;
   const updated = await prisma.user.updateMany({
-    where: { id: userId, usagePeriodStart: periodStart, draftsReserved: { gt: 0 } },
-    data: { draftsReserved: { decrement: 1 }, draftsUsed: { increment: 1 } },
+    where: { id: userId, draftsReserved: { gt: 0 } },
+    data: {
+      draftsReserved: { decrement: 1 },
+      ...(createdInCurrentCycle ? { draftsUsed: { increment: 1 } } : {}),
+    },
   });
-  if (updated.count === 0) throw new Error("Unable to record completed draft usage.");
+  if (updated.count === 0) throw new Error("Unable to release quota reservation for completed draft.");
 }
 
-async function releaseDraftUsage(userId: UserId, periodStart: Date): Promise<void> {
+async function releaseDraftUsage(userId: UserId): Promise<void> {
   await prisma.user.updateMany({
-    where: { id: userId, usagePeriodStart: periodStart, draftsReserved: { gt: 0 } },
+    where: { id: userId, draftsReserved: { gt: 0 } },
     data: { draftsReserved: { decrement: 1 } },
   });
 }
@@ -123,6 +183,7 @@ async function claimLeadForCreation(userId: UserId, lead: Lead) {
         id: existing.id,
         OR: [
           { status: { not: PROCESSING_STATUS.PROCESSING } },
+          { status: null },
           { updatedAt: { lte: leaseExpiredAt } },
         ],
       },
@@ -205,27 +266,20 @@ export function decideLeadAction(
   const status = lead.status.trim().toLowerCase();
   const sameTrackedLead = trackingRecord?.leadFingerprint === leadFingerprint(lead)
     || trackingRecord?.leadFingerprint === legacyLeadFingerprint(lead);
-  const trackedAsProcessed = sameTrackedLead && (
-    trackingRecord.status === PROCESSING_STATUS.DRAFT_CREATED
-    || trackingRecord.status === PROCESSING_STATUS.SENT
-    || Boolean(trackingRecord.gmailDraftId)
-  );
+  const trackedAsProcessed = Boolean(sheetDraftId)
+    || (sameTrackedLead && (
+      trackingRecord.status === PROCESSING_STATUS.SENT
+      || Boolean(trackingRecord.gmailDraftId)
+    ));
 
   if (trackedAsProcessed) {
     return { action: "skipped", reason: "This lead already has a tracked Gmail draft." };
   }
 
-  if (status === "draft created") {
-    if (sameTrackedLead || sheetDraftId) {
-      return { action: "skipped", reason: `Status "${lead.status}" is already tracked for this lead.` };
-    }
-    if (lead.validationErrors.length > 0) {
-      return { action: "skipped", reason: `Invalid lead: ${lead.validationErrors.join(", ")}.` };
-    }
-    return { action: "create", reason: "New lead." };
+  if (status === "sent") {
+    return { action: "skipped", reason: `Status "${lead.status}" is not eligible for processing.` };
   }
-
-  if (status !== "new") {
+  if (status !== "new" && status !== "failed" && status !== "draft created") {
     return { action: "skipped", reason: `Status "${lead.status}" is not eligible for processing.` };
   }
   if (lead.validationErrors.length > 0) return { action: "skipped", reason: `Invalid lead: ${lead.validationErrors.join(", ")}.` };
@@ -256,7 +310,13 @@ export function mergeLeadTracking(
   };
 }
 
-async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult> {
+async function processLead(
+  userId: UserId,
+  lead: Lead,
+  leadNumber: number,
+  totalLeads: number,
+): Promise<ProcessingResult> {
+  const progressLabel = `lead ${leadNumber}/${totalLeads}:`;
   const sheetDraftId = lead.draftId;
   const trackingRecord = await findLeadRecord(userId, lead);
   lead = mergeLeadTracking(lead, trackingRecord);
@@ -264,6 +324,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
   const existingDraftId = lead.draftId || null;
 
   if (decision.action === "skipped") {
+    console.info(`${progressLabel} skipped (${decision.reason})`);
     console.info(`Lead ${leadLabel(lead)} skipped; existing draft ID ${existingDraftId || "(none)"}; reason: ${decision.reason}`);
     return { action: decision.action, reason: decision.reason, existingDraftId };
   }
@@ -273,24 +334,29 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
   const claim = await claimLeadForCreation(userId, lead);
   if (!claim) {
     const reason = "Another request is already processing this row.";
+    console.info(`${progressLabel} skipped (${reason})`);
     console.info(`Lead ${leadLabel(lead)} skipped; reason: ${reason}`);
     return { action: "skipped", reason, existingDraftId };
   }
 
   let usageReserved = false;
-  let reservedPeriodStart: Date | null = null;
   let createdDraftId: string | null = null;
   let createdMessageId: string | null = null;
   let createdThreadId: string | null = null;
+  let draftCreatedAt: Date | null = null;
   let failureStage = "quota reservation";
   try {
-    reservedPeriodStart = await reserveDraftUsage(userId);
+    await reserveDraftUsage(userId);
     usageReserved = true;
     failureStage = "Gemini";
+    console.info(`${progressLabel} Gemini call started`);
     const email = await generateEmail(lead);
+    console.info(`${progressLabel} Gemini call finished`);
     failureStage = "Gmail draft creation";
     const draft = await createDraft(userId, { to: lead.email, ...email });
     if (!draft?.id) throw new Error("Gmail created a draft without returning a draft ID.");
+    console.info(`${progressLabel} Gmail draft created`);
+    draftCreatedAt = new Date();
     createdDraftId = draft.id;
     createdMessageId = draft.message?.id || null;
     createdThreadId = draft.message?.threadId || null;
@@ -300,23 +366,23 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
       data: {
         leadFingerprint: leadFingerprint(lead),
         status: PROCESSING_STATUS.DRAFT_CREATED,
-        gmailDraftId: draft.id,
+        gmailDraftId: createdDraftId,
         gmailMessageId: createdMessageId,
         gmailThreadId: createdThreadId,
       },
     });
-    await commitDraftUsage(userId, reservedPeriodStart);
+    await commitDraftUsage(userId, draftCreatedAt);
     usageReserved = false;
     try {
-      await updateLeadStatus(userId, lead, "Draft Created", draft.id, createdMessageId || "", createdThreadId || "");
+      await updateLeadStatus(userId, lead, "Draft Created", createdDraftId!, createdMessageId || "", createdThreadId || "");
     } catch (error) {
-      console.error(`Gmail draft ${draft.id} was created for lead ${leadLabel(lead)}, but the Sheet status/draft metadata update failed: ${errorMessage(error)}`);
+      console.error(`Gmail draft ${createdDraftId} was created for lead ${leadLabel(lead)}, but the Sheet status/draft metadata update failed: ${errorMessage(error)}`);
     }
-    console.info(`Lead ${leadLabel(lead)} created new Gmail draft ${draft.id} (message ${createdMessageId || "(missing)"}, thread ${createdThreadId || "(missing)"}); quota incremented.`);
+    console.info(`Lead ${leadLabel(lead)} created new Gmail draft ${createdDraftId} (message ${createdMessageId || "(missing)"}, thread ${createdThreadId || "(missing)"}); quota incremented.`);
     return {
       action: "created",
       reason: "Created a new Gmail draft.",
-      draftId: draft.id,
+      draftId: createdDraftId!,
       messageId: createdMessageId,
       threadId: createdThreadId,
       existingDraftId,
@@ -326,7 +392,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
       console.error(`Gmail draft ${createdDraftId} exists for lead ${leadLabel(lead)}, but recording its processing state failed: ${errorMessage(error)}`);
       if (usageReserved) {
         try {
-          await commitDraftUsage(userId, reservedPeriodStart!);
+          await commitDraftUsage(userId, draftCreatedAt!);
         } catch (usageError) {
           console.error(`Could not commit quota for successfully created Gmail draft ${createdDraftId}: ${errorMessage(usageError)}`);
         }
@@ -347,21 +413,38 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
     let reservationReleaseError: unknown;
     if (usageReserved) {
       try {
-        await releaseDraftUsage(userId, reservedPeriodStart!);
+        await releaseDraftUsage(userId);
       } catch (releaseError) {
         reservationReleaseError = releaseError;
         console.error(`Could not release reserved draft quota for lead ${leadLabel(lead)}: ${errorMessage(releaseError)}`);
       }
     }
-    if (error instanceof UsageLimitError) {
+    if (error instanceof GeminiRateLimitError) {
+      console.error(`${progressLabel} failed (${error.message})`);
       try {
-        await markLeadFailed(claim, error);
-      } catch (recordError) {
-        console.error(`Could not persist failed state for lead ${leadLabel(lead)}: ${errorMessage(recordError)}`);
+        const released = await prisma.leadProcessing.updateMany({
+          where: { id: claim.id, status: PROCESSING_STATUS.PROCESSING },
+          data: { status: null, errorMessage: null },
+        });
+        if (released.count !== 1) {
+          console.warn(`Could not release processing claim for rate-limited lead ${leadLabel(lead)}.`);
+        }
+      } catch (releaseError) {
+        console.error(`Could not release processing claim for rate-limited lead ${leadLabel(lead)}: ${errorMessage(releaseError)}`);
       }
-      await markSheetFailed(userId, lead);
-      console.warn(`Lead ${leadLabel(lead)} failed; existing draft ID ${existingDraftId || "(none)"}; reason: ${error.message}`);
-      return { action: "failed", reason: error.message, existingDraftId };
+      throw error;
+    }
+    if (error instanceof UsageLimitError) {
+      console.error(`${progressLabel} failed (${error.message})`);
+      try {
+        await prisma.leadProcessing.updateMany({
+          where: { id: claim.id, status: PROCESSING_STATUS.PROCESSING },
+          data: { status: null, errorMessage: null },
+        });
+      } catch (recordError) {
+        console.error(`Could not release quota-blocked lead ${leadLabel(lead)}: ${errorMessage(recordError)}`);
+      }
+      throw error;
     }
     const originalMessage = errorMessage(error);
     const stagePrefix = failureStage === "Gemini" || originalMessage.startsWith("Gemini ")
@@ -370,6 +453,7 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
     const reason = `${stagePrefix}${originalMessage || "An unexpected error occurred."}${reservationReleaseError
       ? ` Draft quota reservation release also failed: ${errorMessage(reservationReleaseError)}`
       : ""}`;
+    console.error(`${progressLabel} failed (${reason})`);
     const failure = new Error(reason, { cause: error });
     try {
       await markLeadFailed(claim, failure);
@@ -384,38 +468,83 @@ async function processLead(userId: UserId, lead: Lead): Promise<ProcessingResult
 
 export async function processLeadsIndependently(
   leads: Lead[],
-  processOne: (lead: Lead) => Promise<ProcessingResult>,
+  processOne: (lead: Lead, leadNumber: number, totalLeads: number) => Promise<ProcessingResult>,
   handleFailure: (lead: Lead, error: unknown) => Promise<void> = async () => {},
+  onProgress?: (progress: LeadProcessingProgress) => void,
 ): Promise<ProcessingResultDetail[]> {
   const details: ProcessingResultDetail[] = [];
-  for (const lead of leads) {
+  let draftsCreated = 0;
+  let failed = 0;
+  for (const [index, lead] of leads.entries()) {
+    const leadNumber = index + 1;
+    onProgress?.({ currentLead: leadNumber, totalLeads: leads.length, draftsCreated, failed });
     let result: ProcessingResult;
+    let stopBatch = false;
     try {
-      result = await processOne(lead);
+      result = await processOne(lead, leadNumber, leads.length);
     } catch (error) {
-      const reason = errorMessage(error);
-      try {
-        await handleFailure(lead, error);
-      } catch (handlingError) {
-        console.error(`Could not record failure for row ${lead.rowNumber}: ${errorMessage(handlingError)}`);
+      if (error instanceof UsageLimitError) {
+        result = { action: "failed", reason: error.message, existingDraftId: lead.draftId || null };
+        stopBatch = true;
+      } else if (error instanceof GeminiRateLimitError) {
+        result = { action: "failed", reason: error.message, existingDraftId: lead.draftId || null };
+        stopBatch = true;
+      } else {
+        const reason = errorMessage(error);
+        console.error(`lead ${leadNumber}/${leads.length}: failed (${reason})`);
+        try {
+          await handleFailure(lead, error);
+        } catch (handlingError) {
+          console.error(`Could not record failure for row ${lead.rowNumber}: ${errorMessage(handlingError)}`);
+        }
+        console.error(`Lead ${leadLabel(lead)} failed; existing draft ID ${lead.draftId || "(none)"}; reason: ${reason}`);
+        result = { action: "failed", reason, existingDraftId: lead.draftId || null };
       }
-      console.error(`Lead ${leadLabel(lead)} failed; existing draft ID ${lead.draftId || "(none)"}; reason: ${reason}`);
-      result = { action: "failed", reason, existingDraftId: lead.draftId || null };
     }
     details.push({ name: lead.name, email: lead.email, rowNumber: lead.rowNumber, ...result });
+    if (result.action === "created") draftsCreated += 1;
+    if (result.action === "failed") failed += 1;
+    onProgress?.({ currentLead: leadNumber, totalLeads: leads.length, draftsCreated, failed });
+    if (stopBatch) break;
   }
   return details;
 }
 
-export async function processUserLeads(userId: UserId, spreadsheet: SpreadsheetLocation) {
-  await refreshUsageCycle(userId);
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+export async function processUserLeads(
+  userId: UserId,
+  spreadsheet: SpreadsheetLocation,
+  onProgress?: (progress: LeadProcessingProgress) => void,
+) {
+  const user = await refreshUsageCycle(userId);
   if (!user) throw new Error("Authenticated user no longer exists.");
+  if (user.isDemo) return getDemoProcessingResult();
+  const resetAt = usagePeriodResetAt(user.quotaCycleStartAt, false);
+  if (user.draftsUsed + user.draftsReserved >= user.draftLimit) {
+    return {
+      message: new UsageLimitError(false, resetAt).message,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      failed: 0,
+      details: [],
+      limitReached: true,
+      aiRateLimitReached: false,
+      draftsUsed: user.draftsUsed,
+      draftLimit: user.draftLimit,
+      usagePeriodStart: user.usagePeriodStart,
+      quotaCycleStartAt: user.quotaCycleStartAt,
+      usagePeriodResetAt: resetAt,
+    };
+  }
 
-  const leads = await getLeads(userId, spreadsheet);
+  if (!spreadsheet.sheetName.trim()) throw new SpreadsheetValidationError("Sheet tab not found");
+  const sheetId = await getConfiguredSheetId(userId, spreadsheet.spreadsheetId, spreadsheet.sheetName);
+  if (sheetId === null) throw new SpreadsheetValidationError("Sheet tab not found");
+  const leads: Lead[] = await getLeads(userId, spreadsheet);
+  if (leads.length === 0) throw new SpreadsheetValidationError(`No leads found in ${spreadsheet.sheetName}`);
   const details = await processLeadsIndependently(
     leads,
-    (lead) => processLead(userId, lead),
+    (lead, leadNumber, totalLeads) => processLead(userId, lead, leadNumber, totalLeads),
     async (lead, error) => {
       await markSheetFailed(userId, lead);
       try {
@@ -425,29 +554,38 @@ export async function processUserLeads(userId: UserId, spreadsheet: SpreadsheetL
         console.error(`Could not persist unexpected failure for lead ${leadLabel(lead)}: ${errorMessage(recordError)}`);
       }
     },
+    onProgress,
   );
-  let limitReached = false;
-
-  for (const result of details) {
-    if (result.action === "failed" && result.reason === "Your 30-day AI draft limit has been reached.") limitReached = true;
-  }
+  const limitReached = details.some((result) => (
+    result.action === "failed" && result.reason?.startsWith("Draft limit reached.") === true
+  ));
+  const aiRateLimitReached = details.some((result) => result.reason === GEMINI_RATE_LIMIT_MESSAGE);
 
   const summary = summarizeProcessingResults(details);
   const updatedUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { draftsUsed: true, draftLimit: true, usagePeriodStart: true },
+    select: { draftsUsed: true, draftLimit: true, usagePeriodStart: true, quotaCycleStartAt: true, isDemo: true },
   });
   if (!updatedUser) throw new Error("Authenticated user no longer exists.");
   console.info(`Lead processing complete: ${summary.processed} evaluated, ${summary.created} created, ${summary.skipped} skipped, ${summary.failed} failed.`);
   return {
-    message: "Lead processing completed",
+    message: aiRateLimitReached
+      ? GEMINI_RATE_LIMIT_MESSAGE
+      : limitReached
+        ? new UsageLimitError(false, usagePeriodResetAt(updatedUser.quotaCycleStartAt, false)).message
+        : "Lead processing completed",
     ...summary,
     details,
     limitReached,
+    aiRateLimitReached,
     draftsUsed: updatedUser.draftsUsed,
     draftLimit: updatedUser.draftLimit,
     usagePeriodStart: updatedUser.usagePeriodStart,
-    usagePeriodResetAt: usagePeriodResetAt(updatedUser.usagePeriodStart),
+    quotaCycleStartAt: updatedUser.quotaCycleStartAt,
+    usagePeriodResetAt: usagePeriodResetAt(
+      updatedUser.isDemo ? updatedUser.usagePeriodStart : updatedUser.quotaCycleStartAt,
+      updatedUser.isDemo,
+    ),
   };
 }
 

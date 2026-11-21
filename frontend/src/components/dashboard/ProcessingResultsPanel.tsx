@@ -2,13 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Mail, ExternalLink, ChartNoAxesCombined, AlertTriangle, Info } from 'lucide-react';
 import type { LeadProcessingResult } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { formatQuotaResetDate } from '../../utils/quota';
 
 interface ProcessingResultsPanelProps {
   results: LeadProcessingResult;
-  onClear?: () => void;
 }
 
 export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps) => {
+  const { user } = useAuth();
+  const isDemo = Boolean(user?.isDemo);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [popoverTop, setPopoverTop] = useState(0);
   const helpRef = useRef<HTMLDivElement>(null);
@@ -43,19 +46,19 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
     skipped = 0,
     failed = 0,
     limitReached = false,
-    draftsUsed,
-    draftLimit,
+    aiRateLimitReached = false,
     details = [],
   } = results;
   const failedDetails = details.filter((detail) => detail.action === 'failed');
+  const resetDate = formatQuotaResetDate(results.usagePeriodResetAt || user?.usagePeriodResetAt) || 'your next 30-day reset date';
 
   const stats = [
-    { label: 'Leads Checked', value: processed, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
-    { label: 'Drafts Created', value: created, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]', primary: true },
-    { label: 'Already Processed', value: skipped, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
+    { label: 'Leads Checked', value: isDemo ? 8 : processed, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
+    { label: isDemo ? 'Drafts Generated' : 'Drafts Created', value: isDemo ? 8 : created, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]', primary: true },
+    { label: 'Already Processed', value: isDemo ? 0 : skipped, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
     failed > 0
-      ? { label: 'Failed', value: failed, color: 'text-red-400', bg: 'bg-red-500/8', border: 'border-red-500/20' }
-      : { label: 'Failed', value: failed, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
+      ? { label: 'Failed', value: isDemo ? 0 : failed, color: 'text-red-400', bg: 'bg-red-500/8', border: 'border-red-500/20' }
+      : { label: 'Failed', value: isDemo ? 0 : failed, color: 'text-slate-300', bg: 'bg-[#0f1117]', border: 'border-[#2a2d3a]' },
   ];
 
   return (
@@ -69,7 +72,7 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
           <div>
             <div className="flex items-center gap-2.5">
               <p className="text-sm font-medium text-slate-200">Processing Results</p>
-              <div className="relative" ref={helpRef}>
+              {!isDemo && <div className="relative" ref={helpRef}>
                 <button
                   type="button"
                   ref={helpButtonRef}
@@ -98,19 +101,19 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
                     <p className="mb-2 text-xs font-medium text-slate-200">What do these mean?</p>
                     <dl className="space-y-1.5 text-xs text-slate-400">
                       <div><dt className="inline font-medium text-slate-200">Leads Checked:</dt> <dd className="inline">Total leads checked in this run.</dd></div>
-                      <div><dt className="inline font-medium text-slate-200">Drafts Created:</dt> <dd className="inline">New Gmail drafts created.</dd></div>
+                      <div><dt className="inline font-medium text-slate-200">Drafts Created:</dt> <dd className="inline">{isDemo ? 'New email drafts generated for demo mode.' : 'New Gmail drafts created.'}</dd></div>
                       <div><dt className="inline font-medium text-slate-200">Already Processed:</dt> <dd className="inline">Rows already processed or not eligible.</dd></div>
                       <div><dt className="inline font-medium text-slate-200">Failed:</dt> <dd className="inline">Leads that could not be processed due to an error.</dd></div>
                     </dl>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
-            <p className="text-xs text-slate-500">{message}</p>
+            {!isDemo && !aiRateLimitReached && !limitReached && <p className="text-xs text-slate-500">{message}</p>}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:justify-end">
+        {!isDemo && <div className="flex items-center gap-2 sm:justify-end">
           <a
             href="https://mail.google.com/mail/u/0/#drafts"
             target="_blank"
@@ -121,7 +124,7 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
             Open Gmail Drafts
             <ExternalLink className="w-3 h-3 text-white" />
           </a>
-        </div>
+        </div>}
       </div>
 
       {/* Stats grid */}
@@ -139,18 +142,22 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
         ))}
       </div>
 
-      {/* Quota warning */}
-      {limitReached && (
-        <div className="flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-md px-3 py-2.5 text-xs text-amber-400 mb-4">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold block mb-0.5">Monthly quota reached</span>
-            Processing paused. Quota: {draftsUsed} / {draftLimit}. Resets at next billing cycle.
-          </div>
+      {aiRateLimitReached && (
+        <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <p>{message}</p>
         </div>
       )}
 
-      {failedDetails.length > 0 && (
+      {/* Quota warning */}
+      {!isDemo && limitReached && (
+        <div className="flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-md px-3 py-2.5 text-xs text-amber-400 mb-4">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <p>{message.startsWith('Draft limit reached.') ? message : `Draft limit reached. Resets on ${resetDate}.`}</p>
+        </div>
+      )}
+
+      {!isDemo && failedDetails.length > 0 && (
         <div className="bg-red-500/8 border border-red-500/20 rounded-md px-3 py-2.5 text-xs text-red-300 mb-4">
           <p className="font-medium mb-1.5">Processing errors</p>
           <ul className="space-y-1">
@@ -167,19 +174,22 @@ export const ProcessingResultsPanel = ({ results }: ProcessingResultsPanelProps)
       <div className="bg-[#0f1117] border border-[#2a2d3a] rounded-md px-3 py-2.5 text-xs text-slate-500">
         <p className="font-medium text-slate-400 mb-1">Summary</p>
         <div className="space-y-0.5 leading-relaxed">
-          <p>
-            {created > 0
-              ? `${created} new Gmail drafts created with Gemini AI.`
-              : 'No new Gmail drafts were created.'}
-          </p>
-          {skipped > 0 && (
-            <p>
-              {skipped} {skipped === 1 ? 'lead was' : 'leads were'} already processed or not eligible.
-            </p>
+          {isDemo ? (
+            <>
+              <p>8 demo drafts generated.</p>
+              <p>0 leads processed.</p>
+            </>
+          ) : (
+            <>
+              <p>{created > 0 ? `${created} new Gmail drafts created with Gemini AI.` : 'No new Gmail drafts were created.'}</p>
+              {skipped > 0 && (
+                <p>
+                  {skipped} {skipped === 1 ? 'lead was' : 'leads were'} already processed or not eligible.
+                </p>
+              )}
+              <p>{failed} {failed === 1 ? 'lead failed' : 'leads failed'}.</p>
+            </>
           )}
-          <p>
-            {failed} {failed === 1 ? 'lead failed' : 'leads failed'}.
-          </p>
         </div>
       </div>
     </div>

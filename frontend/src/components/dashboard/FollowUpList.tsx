@@ -10,9 +10,12 @@ import { userApi } from '../../api/userApi';
 import type { LeadListItem } from '../../types';
 import { getErrorMessage } from '../../types';
 
+const DEMO_LEAD_DETAIL_COLUMNS = new Set(['name', 'email', 'company', 'requirement', 'budget', 'message']);
+
 export const LeadList = () => {
   const { leads, loading, refreshing, error, refresh } = useFollowUps();
   const { user } = useAuth();
+  const isDemo = Boolean(user?.isDemo);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLead, setSelectedLead] = useState<LeadListItem | null>(null);
@@ -39,6 +42,9 @@ export const LeadList = () => {
   }, [leads, searchQuery]);
   const pageData = useMemo(() => paginateLeads(filteredLeads, page, 10), [filteredLeads, page]);
   const drawerTitle = selectedLead ? getPrimaryLeadTitle(selectedLead.fields) : 'Unnamed lead';
+  const detailFields = selectedLead?.fields.filter(({ column }) =>
+    !isDemo || DEMO_LEAD_DETAIL_COLUMNS.has(column.trim().toLocaleLowerCase())
+  ) ?? [];
   const pageWindowStart = Math.min(Math.max(1, pageData.page - 2), Math.max(1, pageData.pageCount - 4));
   const pageNumbers = Array.from({ length: Math.min(5, pageData.pageCount) }, (_, index) => pageWindowStart + index);
 
@@ -82,19 +88,19 @@ export const LeadList = () => {
   return <section className="w-full min-w-0 max-w-full rounded-lg border border-[#2a2d3a] bg-[#1a1d27] p-4 sm:p-5">
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-slate-200">Lead directory</h2>
-        <p className="mt-1 text-xs text-slate-500">Imported leads from your configured Google Sheet.</p>
+        <h2 className="text-sm font-semibold text-slate-200">{isDemo ? 'Demo leads' : 'Lead directory'}</h2>
+        <p className="mt-1 text-xs text-slate-500">{isDemo ? 'Sample leads included with demo mode.' : 'Imported leads from your configured Google Sheet.'}</p>
       </div>
       <div className="flex w-full min-w-0 flex-wrap gap-1.5 sm:w-auto sm:justify-end lg:flex-nowrap">
-        <Link to="/dashboard#process-leads" className="inline-flex min-h-10 items-center rounded-md border border-[#2a2d3a] px-2.5 py-2 font-sans text-xs font-medium tracking-normal text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+        <Link to={`${isDemo ? '/demo' : '/dashboard'}#process-leads`} className="inline-flex min-h-10 items-center rounded-md border border-[#2a2d3a] px-2.5 py-2 font-sans text-xs font-medium tracking-normal text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           Process leads
         </Link>
-        <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-[#2a2d3a] px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+        {!isDemo && <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-[#2a2d3a] px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           <SiGmail aria-hidden="true" className="h-4 w-4 text-[#EA4335]" /> Gmail Drafts
-        </a>
-        <button type="button" onClick={() => { if (sheetUrl) window.open(sheetUrl, '_blank', 'noopener,noreferrer'); }} disabled={!sheetUrl} title={!user?.googleConnected ? 'Connect Google to open your spreadsheet' : !user.spreadsheetId ? 'Configure a spreadsheet to open it' : sheetUrlError || (sheetUrl ? 'Open the configured Google Sheet in a new tab' : 'Loading the configured Google Sheet')} aria-label="Open Google Sheet" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#2a2d3a] px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-100">
+        </a>}
+        {!isDemo && <button type="button" onClick={() => { if (sheetUrl) window.open(sheetUrl, '_blank', 'noopener,noreferrer'); }} disabled={!sheetUrl} title={!user?.googleConnected ? 'Connect Google to open your spreadsheet' : !user.spreadsheetId ? 'Configure a spreadsheet to open it' : sheetUrlError || (sheetUrl ? 'Open the configured Google Sheet in a new tab' : 'Loading the configured Google Sheet')} aria-label="Open Google Sheet" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#2a2d3a] px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-100">
           <SiGooglesheets aria-hidden="true" className="h-4 w-4 text-[#34A853]" /> Google Sheet
-        </button>
+        </button>}
         <button type="button" onClick={() => void refresh()} disabled={refreshing} title="Refresh leads" aria-label="Refresh leads" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#2a2d3a] px-2.5 py-2 text-xs text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50">
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
         </button>
@@ -153,8 +159,8 @@ export const LeadList = () => {
           <button ref={closeButtonRef} type="button" onClick={closeDrawer} aria-label="Close lead details" className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"><X className="h-4 w-4" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-          {selectedLead.fields.length > 0 ? <dl className="divide-y divide-[#2a2d3a]">
-            {selectedLead.fields.filter(({ column, value }) => column.trim() && value.trim()).map(({ column, value }, index) => <div key={`${column}-${index}`} className="grid min-w-0 gap-1 py-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-4">
+          {detailFields.length > 0 ? <dl className="divide-y divide-[#2a2d3a]">
+            {detailFields.filter(({ column, value }) => column.trim() && value.trim()).map(({ column, value }, index) => <div key={`${column}-${index}`} className="grid min-w-0 gap-1 py-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-4">
               <dt className="break-words text-xs font-medium text-slate-500">{column}</dt>
               <dd className="min-w-0 whitespace-pre-wrap break-words text-sm text-slate-200">{value}</dd>
             </div>)}

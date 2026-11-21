@@ -8,6 +8,7 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" n
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY data ./data
 COPY test ./test
 RUN npm run build && npm prune --omit=dev
 

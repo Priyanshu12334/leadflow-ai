@@ -5,7 +5,7 @@ import { LoadingScreen } from './LoadingScreen';
 import type { PropsWithChildren } from 'react';
 
 export const PublicOnlyRoute = ({ children }: PropsWithChildren) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   const isLandingSectionNavigation = ['#features', '#how-it-works', '#pricing'].includes(location.hash);
 
@@ -13,8 +13,8 @@ export const PublicOnlyRoute = ({ children }: PropsWithChildren) => {
     return <LoadingScreen />;
   }
 
-  if (isAuthenticated && !isLandingSectionNavigation) {
-    return <Navigate to="/dashboard" replace />;
+  if (user && !isLandingSectionNavigation) {
+    return <Navigate to={user.isDemo ? '/demo' : '/dashboard'} replace />;
   }
 
   return children ? children : <Outlet />;

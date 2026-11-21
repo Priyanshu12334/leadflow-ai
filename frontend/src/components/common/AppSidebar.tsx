@@ -8,11 +8,17 @@ interface AppSidebarProps {
   onCloseMobile: () => void;
 }
 
-const navigation = [
+const normalNavigation = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/leads', label: 'Leads', icon: Users, end: false },
   { to: '/contact', label: 'Contact', icon: Mail, end: false },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
+];
+
+const demoNavigation = [
+  { to: '/demo', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/demo/leads', label: 'Leads', icon: Users, end: true },
+  { to: '/demo/settings', label: 'Settings', icon: Settings, end: true },
 ];
 
 function initials(name?: string, email?: string): string {
@@ -23,6 +29,7 @@ function initials(name?: string, email?: string): string {
 
 export const AppSidebar = ({ mobileOpen, onCloseMobile }: AppSidebarProps) => {
   const { user } = useAuth();
+  const navigation = user?.isDemo ? demoNavigation : normalNavigation;
   const activeClass = 'border-0 shadow-none bg-[#1e2130] text-slate-100';
   const inactiveClass = 'border border-transparent text-slate-400 hover:bg-[#1e2130] hover:text-slate-100';
 
@@ -42,7 +49,7 @@ export const AppSidebar = ({ mobileOpen, onCloseMobile }: AppSidebarProps) => {
       </nav>
 
       <div className="mt-auto space-y-4 border-t border-[#2a2d3a] pt-4">
-        <Link to="/settings" onClick={onCloseMobile} aria-label="Open Settings" className="flex min-w-0 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg bg-[#1e2130] p-2.5 transition-colors hover:bg-[#1e2130] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#13151f]">
+        <Link to={user?.isDemo ? '/demo/settings' : '/settings'} onClick={onCloseMobile} aria-label="Open Settings" className="flex min-w-0 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg bg-[#1e2130] p-2.5 transition-colors hover:bg-[#1e2130] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#13151f]">
           <div aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-sm font-semibold text-indigo-200">{initials(user?.name, user?.email)}</div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-slate-100">{user?.name || 'LeadFlow user'}</p>

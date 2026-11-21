@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { userApi } from '../api/userApi';
 import { authApi } from '../api/authApi';
+import { DEMO_TOKEN_STORAGE_KEY } from '../api/axiosClient';
 import type { PropsWithChildren } from 'react';
 import type { User } from '../types';
 import { getErrorMessage, isApiError } from '../types';
@@ -11,6 +13,7 @@ interface AuthContextValue {
   authError: string | null;
   isAuthenticated: boolean;
   loginWithGoogle: () => void;
+  loginWithDemo: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   disconnectGoogle: () => Promise<void>;
@@ -20,6 +23,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -32,6 +36,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     } catch (error: unknown) {
       if (!isApiError(error) || error.status !== 401) {
         setAuthError(getErrorMessage(error) || 'Failed to authenticate user');
+      } else {
+        window.sessionStorage.removeItem(DEMO_TOKEN_STORAGE_KEY);
       }
       setUser(null);
     } finally {
@@ -47,14 +53,23 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     window.location.href = authApi.getGoogleAuthUrl();
   };
 
+  const loginWithDemo = async (): Promise<void> => {
+    const token = await authApi.loginWithDemo();
+    window.sessionStorage.setItem(DEMO_TOKEN_STORAGE_KEY, token);
+    await fetchCurrentUser();
+    navigate('/demo', { replace: true });
+  };
+
   const logout = async (): Promise<void> => {
+    const isDemo = Boolean(user?.isDemo);
     try {
       await authApi.logout();
     } catch (error: unknown) {
       console.error('Logout error:', error);
     } finally {
+      window.sessionStorage.removeItem(DEMO_TOKEN_STORAGE_KEY);
       setUser(null);
-      window.location.href = '/';
+      window.location.href = isDemo ? '/login' : '/';
     }
   };
 
@@ -73,6 +88,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     authError,
     isAuthenticated: Boolean(user),
     loginWithGoogle,
+    loginWithDemo,
     logout,
     refreshUser: fetchCurrentUser,
     disconnectGoogle,

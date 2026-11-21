@@ -12,6 +12,11 @@ export const authApi = {
     return `${BACKEND_URL}/api/auth/google`;
   },
 
+  loginWithDemo: async (): Promise<string> => {
+    const response = await axiosClient.post<{ token: string }>('/api/auth/demo');
+    return response.data.token;
+  },
+
   logout: async (): Promise<void> => {
     const response = await axiosClient.post<void>('/api/auth/logout');
     return response.data;

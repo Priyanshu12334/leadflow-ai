@@ -5,9 +5,10 @@ import { Zap, AlertCircle } from 'lucide-react';
 
 export const UsageMetricsCard = () => {
   const { user } = useAuth();
-  const draftsUsed = user?.draftsUsed ?? 0;
-  const draftLimit = user?.draftLimit ?? 20;
-  const remaining = Math.max(0, 20 - draftsUsed);
+  const isDemo = Boolean(user?.isDemo);
+  const draftLimit = isDemo ? 20 : user?.draftLimit ?? 20;
+  const draftsUsed = isDemo ? draftLimit : user?.draftsUsed ?? 0;
+  const remaining = Math.max(0, draftLimit - draftsUsed);
   const percentage = Math.min(Math.round((draftsUsed / draftLimit) * 100), 100);
 
   return (
@@ -20,11 +21,11 @@ export const UsageMetricsCard = () => {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-200">Draft Quota</p>
-            <p className="text-xs text-slate-500">30-day usage</p>
+            <p className="text-xs text-slate-500">{isDemo ? 'Demo limit: 20 drafts' : '30-day usage'}</p>
           </div>
         </div>
 
-        {percentage >= 90 && (
+        {!isDemo && percentage >= 90 && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-full">
             <AlertCircle className="w-3 h-3" />
             Quota low
@@ -35,13 +36,19 @@ export const UsageMetricsCard = () => {
       {/* Counter */}
       <div className="mb-4">
         <div className="flex items-baseline justify-between mb-2">
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-slate-100">{draftsUsed}</span>
-            <span className="text-sm text-slate-500">/ {draftLimit} drafts</span>
-          </div>
+          {isDemo ? (
+            <span className="whitespace-nowrap text-xl leading-6 font-medium text-slate-100">
+              {draftLimit} / {draftLimit} drafts remaining
+            </span>
+          ) : (
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-semibold text-slate-100">{draftsUsed}</span>
+              <span className="text-base text-slate-500">/ {draftLimit} drafts</span>
+            </div>
+          )}
         </div>
-        <ProgressBar used={draftsUsed} total={draftLimit} showLabel={false} />
-        <p className="mt-2 text-sm text-slate-400">{remaining} drafts remaining in this cycle</p>
+        <ProgressBar used={draftsUsed} total={draftLimit} showLabel={false} color={isDemo ? 'emerald' : undefined} />
+        <p className="mt-2 text-sm text-slate-400">{isDemo ? 'Drafts are not consumed in demo mode' : `${remaining} drafts remaining in this cycle`}</p>
       </div>
     </div>
   );

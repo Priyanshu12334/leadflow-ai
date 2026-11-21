@@ -1,9 +1,13 @@
-import { processUserLeads } from "../services/leadProcessingService.js";
+import { getDemoProcessingResult } from "../services/leadProcessingService.js";
+import { getLeadProcessingJob, startLeadProcessingJob } from "../services/leadProcessingJobService.js";
 import { getLeads } from "../services/sheetsService.js";
+import { demoLeads } from "../../data/demoLeads.js";
 export const listLeads = async (req, res, next) => {
     try {
         if (!req.user)
             return res.status(401).json({ error: "Authentication is required." });
+        if (req.user.isDemo)
+            return res.json({ leads: demoLeads });
         const { spreadsheetId, sheetName } = req.user;
         if (!spreadsheetId)
             return res.status(400).json({ error: "Configure your Google spreadsheet before viewing leads." });
@@ -26,12 +30,25 @@ export const processLeads = async (req, res, next) => {
         if (!req.user)
             return res.status(401).json({ error: "Authentication is required." });
         const { spreadsheetId, sheetName } = req.user;
-        if (!spreadsheetId)
+        if (!req.user.isDemo && !spreadsheetId)
             return res.status(400).json({ error: "Configure your Google spreadsheet before processing leads." });
-        const result = await processUserLeads(req.user.id, { spreadsheetId, sheetName });
-        res.status(200).json(result);
+        if (req.user.isDemo)
+            return res.status(200).json(getDemoProcessingResult());
+        const jobId = startLeadProcessingJob(req.user.id, { spreadsheetId: spreadsheetId ?? "", sheetName });
+        return res.status(202).json({ jobId });
     }
     catch (error) {
         next(error);
     }
+};
+export const getProcessLeadsJob = (req, res) => {
+    if (!req.user)
+        return res.status(401).json({ error: "Authentication is required." });
+    const jobId = req.params.jobId;
+    if (typeof jobId !== "string")
+        return res.status(404).json({ error: "Processing job not found." });
+    const job = getLeadProcessingJob(req.user.id, jobId);
+    if (!job)
+        return res.status(404).json({ error: "Processing job not found." });
+    return res.json({ job });
 };
