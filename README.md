@@ -4,7 +4,28 @@ LeadFlow is an AI-powered lead follow-up tool that transforms Google Sheets data
 
 Each draft stays in Gmail for human review. LeadFlow does not send emails automatically.
 
-**Live Demo:** [Try LeadFlow](https://get-ai-leadflow.vercel.app)  
+**Live Demo:** [Try LeadFlow](https://get-ai-leadflow.vercel.app) 
+
+  ![Landing](./screenshots/landing.png)
+
+
+## Google Sign-In Note
+
+Connecting your own Google account shows a "Google hasn't verified this app" warning because verification is pending.
+
+To continue with Google OAuth:
+
+1. Click **Advanced**
+
+   ![Step 1](./screenshots/leadflow-google-step1.png)
+
+2. Click **Go to leadflow-backend-...onrender.com (unsafe)**
+
+   ![Step 2](./screenshots/leadflow-google-step2.png)
+
+3. Click **Continue** to grant access
+
+Note: This is Google's unverified-app warning, not a browser security certificate warning.
 
 ## Features
 
